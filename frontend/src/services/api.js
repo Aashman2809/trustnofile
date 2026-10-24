@@ -14,7 +14,7 @@ function uploadFile(file, onProgress) {
     xhr.onload = () => {
       let body = null;
       try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
-      xhr.status >= 200 && xhr.status < 300 ? resolve(body.file) : reject(new Error(body?.error?.message || `Upload failed (${xhr.status})`));
+      xhr.status >= 200 && xhr.status < 300 ? resolve({ ...body.file, priorAnalysis: body.priorAnalysis ?? null }) : reject(new Error(body?.error?.message || `Upload failed (${xhr.status})`));
     };
     const fd = new FormData();
     fd.append('file', file);
@@ -28,6 +28,7 @@ export const api = {
   startAnalysis: (fileId, force = false) => request(`/files/${fileId}/analyze`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
   }),
+  deleteFile: (id, purge = false) => request(`/files/${id}?purge=${purge}`, { method: 'DELETE' }),
   getStats: () => request('/analyses/stats'),
   listAnalyses: (params = {}) => {
     const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''));

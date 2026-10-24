@@ -28,6 +28,10 @@ export async function createLocalAnalysisRepository(dataDir) {
     },
     async findActiveByFileId(fileId) { return records.find((r) => r.fileId === fileId && !TERMINAL.includes(r.status)) || null; },
     async findLatestByFileId(fileId) { return records.filter((r) => r.fileId === fileId).sort(newestFirst)[0] || null; },
+    async removeByFileId(fileId) { records = records.filter((r) => r.fileId !== fileId); await persist(); },
+    async markFileDeleted(fileId) {
+      records = records.map((r) => (r.fileId === fileId ? { ...r, file: { ...r.file, fileDeleted: true } } : r)); await persist();
+    },
     async listNonTerminal() { return records.filter((r) => !TERMINAL.includes(r.status)); },
   };
 }

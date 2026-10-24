@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { UploadCloud, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api.js';
-import { formatBytes } from '../lib/format.js';
+import { formatBytes, formatDate } from '../lib/format.js';
+import { RiskBadge } from '../components/Badges.jsx';
 
 export default function Analyze() {
   const navigate = useNavigate();
@@ -84,6 +85,12 @@ export default function Analyze() {
             <div><dt className="inline text-slate-500">SHA-256: </dt><dd className="inline break-all font-mono text-xs">{result.sha256}</dd></div>
           </dl>
           {result.typeMismatch && <p className="mt-2 text-amber-800">The file extension does not match its detected content. This is recorded as a finding.</p>}
+          {result.priorAnalysis && (
+            <p className="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-blue-900">
+              An identical file (same SHA-256) was already analyzed on {formatDate(result.priorAnalysis.analyzedAt)}: <RiskBadge level={result.priorAnalysis.riskLevel} />{' '}
+              <Link className="underline" to={`/reports/${result.priorAnalysis.analysisId}`}>View that report</Link>. You can still run a fresh analysis below.
+            </p>
+          )}
           <button onClick={start} disabled={starting} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             {starting ? 'Starting…' : 'Start analysis'}
           </button>

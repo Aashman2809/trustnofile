@@ -1,8 +1,8 @@
 import { AppError } from '../middleware/error.middleware.js';
 import { toPublic } from '../services/upload.service.js';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from '../utils/ids.js';
 
-export const filesController = (fileRepo) => ({
+export const filesController = (fileRepo, deletionService) => ({
   list: async (req, res, next) => {
     try {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -14,10 +14,17 @@ export const filesController = (fileRepo) => ({
   },
   get: async (req, res, next) => {
     try {
-      if (!UUID.test(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');
+      if (!isUuid(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');
       const rec = await fileRepo.getById(req.params.id.toLowerCase());
       if (!rec) throw new AppError(404, 'FILE_NOT_FOUND', 'No file with that ID.');
       res.json({ file: toPublic(rec) });
+    } catch (e) { next(e); }
+  },
+  remove: async (req, res, next) => {
+    try {
+      if (!isUuid(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');
+      const purge = req.query.purge === 'true';
+      res.json(await deletionService.remove(req.params.id.toLowerCase(), { purge }));
     } catch (e) { next(e); }
   },
 });

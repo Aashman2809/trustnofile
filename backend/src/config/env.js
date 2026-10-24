@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const config = {
-  version: '0.4.0',
+  version: '0.6.0',
   port: Number(process.env.PORT) || 4000,
   frontendOrigin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 100,

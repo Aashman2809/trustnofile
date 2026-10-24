@@ -18,6 +18,7 @@ export default function History() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => { const t = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 300); return () => clearTimeout(t); }, [search]);
 
@@ -28,8 +29,15 @@ export default function History() {
       .then((d) => !cancelled && setData(d))
       .catch((e) => !cancelled && setError(e.message));
     return () => { cancelled = true; };
-  }, [debounced, status, risk, sort, page]);
+  }, [debounced, status, risk, sort, page, refresh]);
 
+  const remove = async (a, purge) => {
+    const msg = purge
+      ? `Remove "${a.file.originalName}" and ALL of its analysis history? This cannot be undone.`
+      : `Delete the stored copy of "${a.file.originalName}"? The analysis report is kept.`;
+    if (!window.confirm(msg)) return;
+    try { await api.deleteFile(a.fileId, purge); setRefresh((n) => n + 1); } catch (e) { setError(e.message); }
+  };
   const onFilter = (setter) => (e) => { setter(e.target.value); setPage(1); };
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const filtered = debounced || status || risk;
@@ -68,13 +76,18 @@ export default function History() {
               {data.items.map((a) => (
                 <tr key={a.id} className="border-b border-slate-100 align-top">
                   <td className="p-3"><div className="font-medium">{a.file.originalName}</div><div className="font-mono text-xs text-slate-500">{a.id}</div>
+                    {a.file.fileDeleted && <div className="mt-1 text-xs text-slate-500">Stored file deleted (report kept)</div>}
                     {a.error && <div className="mt-1 text-xs text-red-700">{a.error.message}</div>}</td>
                   <td className="pr-3">{formatBytes(a.file.size)}</td>
                   <td className="pr-3">{formatDate(a.startedAt)}</td>
                   <td className="pr-3"><AnalysisStatusBadge status={a.status} /></td>
                   <td className="pr-3">{a.assessment ? <RiskBadge level={a.assessment.riskLevel} /> : '—'}</td>
                   <td className="pr-3">{a.assessment?.riskScore ?? '—'}</td>
-                  <td className="pr-3"><Link className="text-blue-700 hover:underline" to={a.reportAvailable ? `/reports/${a.id}` : `/analysis/${a.id}`}>{a.reportAvailable ? 'Open report' : 'View status'}</Link></td>
+                  <td className="pr-3"><Link className="text-blue-700 hover:underline" to={a.reportAvailable ? `/reports/${a.id}` : `/analysis/${a.id}`}>{a.reportAvailable ? 'Open report' : 'View status'}</Link>
+                    <div className="mt-1 flex gap-3 text-xs">
+                      {!a.file.fileDeleted && <button onClick={() => remove(a, false)} className="text-slate-600 hover:underline">Delete file</button>}
+                      <button onClick={() => remove(a, true)} className="text-red-700 hover:underline">Remove entry</button>
+                    </div></td>
                 </tr>
               ))}
             </tbody>

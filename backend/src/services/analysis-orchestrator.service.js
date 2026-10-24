@@ -8,11 +8,12 @@ import { AppError } from '../middleware/error.middleware.js';
 import { config } from '../config/env.js';
 import { newId } from '../utils/ids.js';
 import { log } from '../utils/logger.js';
+import { validateLlmResult } from '../integrations/llm/llm.interface.js';
 
 const SEV = { high: 3, medium: 2, low: 1, info: 0 };
 const iso = () => new Date().toISOString();
 
-export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = runStaticAnalysis, storageDir = config.storageDir }) {
+export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = runStaticAnalysis, storageDir = config.storageDir, integrations = null }) {
   const locks = new Map();
   const withLock = (key, fn) => {
     const next = (locks.get(key) || Promise.resolve()).catch(() => {}).then(fn);
@@ -52,9 +53,22 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
       const assessment = assessRisk({ findings: evidence.findings, modules: evidence.modules, file });
 
       await step('GENERATING_REPORT', null, { assessment });
+      // Optional LLM layer: runs only if explicitly configured; its failure never fails the analysis.
+      let ai;
+      if (integrations?.llm?.getStatus().status === 'configured') {
+        const failed = { status: 'error', message: 'LLM analysis failed or returned invalid output; static results are unaffected.' };
+        try {
+          const raw = await integrations.llm.analyzeEvidence({
+            fileMetadata: { size: file.size, format: file.detected?.format, mime: file.detected?.mime, sha256: file.sha256 },
+            staticEvidence: evidence, preliminaryAssessment: assessment, context: { phase: 'static_only' } });
+          const v = validateLlmResult(raw);
+          if (!v.ok) log('error', 'llm_invalid_output', { analysisId: id });
+          ai = v.ok ? v.value : failed;
+        } catch { log('error', 'llm_failed', { analysisId: id }); ai = failed; }
+      }
       const partial = evidence.summary.failed + evidence.summary.timeout > 0;
       const status = partial ? 'PARTIAL' : 'COMPLETED', now = iso();
-      const report = buildReport({ analysisId: id, status, startedAt: a.startedAt, finishedAt: now, file, evidence, assessment, now });
+      const report = buildReport({ analysisId: id, status, startedAt: a.startedAt, finishedAt: now, file, evidence, assessment, now, ai });
       await step(status, partial ? 'One or more modules failed; results are partial.' : null, { report });
     } catch (err) {
       log('error', 'analysis_failed', { analysisId: id, state: a.status, error: String(err.message).slice(0, 200) });
@@ -71,6 +85,7 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
       return withLock(fileId, async () => {
         const file = await fileRepo.getById(fileId);
         if (!file) throw new AppError(404, 'FILE_NOT_FOUND', 'No file with that ID.');
+        if (file.fileDeleted) throw new AppError(409, 'FILE_DELETED', 'The stored file was deleted, so it cannot be analyzed.');
         const active = await analysisRepo.findActiveByFileId(fileId);
         if (active) return { analysis: active, created: false, reason: 'already_running' };
         if (!force) {
