@@ -3,6 +3,7 @@ import { isUuid } from '../utils/ids.js';
 import { STATES } from '../services/analysis-states.js';
 import { RISK_LEVELS } from '../services/risk-assessment.service.js';
 import { toSummary } from '../services/report.service.js';
+import { computeStats } from '../services/stats.service.js';
 
 export const analysisController = ({ orchestrator, analysisRepo }) => {
   const load = async (id) => {
@@ -31,6 +32,13 @@ export const analysisController = ({ orchestrator, analysisRepo }) => {
         const search = typeof req.query.search === 'string' ? req.query.search.slice(0, 100) : '';
         const { items, total } = await analysisRepo.list({ page, pageSize, status, risk, search, fileId: req.query.fileId, sort });
         res.json({ items: items.map(toSummary), total, page, pageSize });
+      } catch (e) { next(e); }
+    },
+    stats: async (_req, res, next) => {
+      try {
+        const { items } = await analysisRepo.list({ page: 1, pageSize: Number.MAX_SAFE_INTEGER });
+        const s = computeStats(items);
+        res.json({ ...s, recent: s.recent.map(toSummary), persistence: 'local_json_development_store' });
       } catch (e) { next(e); }
     },
     get: async (req, res, next) => { try { res.json({ analysis: toSummary(await load(req.params.id)) }); } catch (e) { next(e); } },

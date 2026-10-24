@@ -28,6 +28,11 @@ export const api = {
   startAnalysis: (fileId, force = false) => request(`/files/${fileId}/analyze`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
   }),
+  getStats: () => request('/analyses/stats'),
+  listAnalyses: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== ''));
+    return request('/analyses?' + q.toString());
+  },
   getAnalysis: (id) => request(`/analyses/${id}`),
   getReport: (id) => request(`/analyses/${id}/report`),
   reportDownloadUrl: (id) => `/api/analyses/${id}/report.json`,

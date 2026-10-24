@@ -17,3 +17,10 @@ const MODULE = {
 export const RiskBadge = ({ level }) => { const [label, cls] = RISK[level] || RISK.insufficient_evidence; return <span className={`${pill} ${cls}`}>{label}</span>; };
 export const SeverityBadge = ({ severity }) => <span className={`${pill} ${SEVERITY[severity] || SEVERITY.info}`}>{severity}</span>;
 export const ModuleStatusBadge = ({ status }) => <span className={`${pill} ${MODULE[status] || MODULE.skipped}`}>{status}</span>;
+const STATUS = {
+  COMPLETED: 'border-green-200 bg-green-50 text-green-800', PARTIAL: 'border-amber-200 bg-amber-50 text-amber-900',
+  FAILED: 'border-red-200 bg-red-50 text-red-800', REJECTED: 'border-red-200 bg-red-50 text-red-800',
+};
+export const AnalysisStatusBadge = ({ status }) => (
+  <span className={`${pill} ${STATUS[status] || 'border-blue-200 bg-blue-50 text-blue-800'}`}>{status === 'PARTIAL' ? 'Partial' : status.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
+);
