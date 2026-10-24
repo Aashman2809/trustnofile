@@ -159,3 +159,18 @@ test('entropy: PDFs (compressed streams) no longer raise HIGH_ENTROPY', async ()
   const p = path.join(storage, 'rand.bin'); fs.writeFileSync(p, (await import('node:crypto')).randomBytes(70000));
   assert.equal((await entropyModule({ filePath: p, file: { detected: { format: 'pdf' } } })).findings.length, 0);
 });
+
+test('limitations: signature noise only for executables; no doubled punctuation', () => {
+  const mods = [...CORE, { module: 'signature', status: 'unavailable', reason: 'Only for PE files.', findings: [], errors: [] }, { module: 'yara', status: 'unavailable', reason: 'YARA executable not found. This is NOT a clean scan.', findings: [], errors: [] }];
+  const pdf = assessRisk({ findings: [], modules: mods, file: { detected: { format: 'pdf' } } });
+  assert.ok(!pdf.limitations.some((l) => l.includes('"signature"')));
+  assert.ok(pdf.limitations.some((l) => l.includes('"yara"')));
+  assert.ok(!pdf.limitations.some((l) => /\.\)\./.test(l)));
+  assert.ok(assessRisk({ findings: [], modules: mods, file: { detected: { format: 'exe' } } }).limitations.some((l) => l.includes('"signature"')));
+});
+
+test('limitations: only trailing periods/whitespace are trimmed, never letters', () => {
+  const mods = [...CORE, { module: 'yara', status: 'unavailable', reason: 'Tools not installed...  ', findings: [], errors: [] }];
+  const r = assessRisk({ findings: [], modules: mods, file: { detected: { format: 'pdf' } } });
+  assert.ok(r.limitations.some((l) => l.endsWith('(Tools not installed).')), r.limitations.join('|'));
+});

@@ -14,8 +14,8 @@ export function assessRisk({ findings = [], modules = [], file = {} }, cfg = ris
     'The score is an application-defined heuristic, not a calibrated malware probability.',
   ];
   for (const m of modules) {
-    if (['unavailable', 'failed', 'timeout'].includes(m.status) || (m.status === 'skipped' && m.module === 'yara')) {
-      const detail = m.reason || m.errors?.[0];
+    if ((['unavailable', 'failed', 'timeout'].includes(m.status) && !(m.module === 'signature' && m.status === 'unavailable' && file.detected?.format !== 'exe')) || (m.status === 'skipped' && m.module === 'yara')) {
+      const detail = String(m.reason || m.errors?.[0] || '').replace(/[.\s]+$/, '');
       limitations.push(`Module "${m.module}" ${m.status}${detail ? ` (${detail})` : ''}.`);
     }
   }

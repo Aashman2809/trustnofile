@@ -25,4 +25,10 @@ export const api = {
   health: () => request('/health'),
   capabilities: () => request('/config/capabilities'),
   uploadFile,
+  startAnalysis: (fileId, force = false) => request(`/files/${fileId}/analyze`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
+  }),
+  getAnalysis: (id) => request(`/analyses/${id}`),
+  getReport: (id) => request(`/analyses/${id}/report`),
+  reportDownloadUrl: (id) => `/api/analyses/${id}/report.json`,
 };

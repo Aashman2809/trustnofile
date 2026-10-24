@@ -4,6 +4,8 @@ import { LayoutDashboard, FileSearch, History, BookOpen, Settings as Cog, Shield
 import Placeholder from './components/Placeholder.jsx';
 import Settings from './pages/Settings.jsx';
 import Analyze from './pages/Analyze.jsx';
+import AnalysisProgress from './pages/AnalysisProgress.jsx';
+import Report from './pages/Report.jsx';
 
 const nav = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
@@ -37,15 +39,17 @@ export default function App() {
         </header>
         <main className="flex-1 p-6">
           <Routes>
-            <Route path="/" element={<Placeholder title="Overview" milestone="Milestone 5">Statistics will come from the backend.</Placeholder>} />
+            <Route path="/" element={<Placeholder title="Overview" milestone="Milestone 5b">Statistics will come from the backend.</Placeholder>} />
             <Route path="/analyze" element={<Analyze />} />
-            <Route path="/history" element={<Placeholder title="Analysis History" milestone="Milestone 5" />} />
-            <Route path="/methodology" element={<Placeholder title="Security Methodology" milestone="Milestone 5" />} />
+            <Route path="/analysis/:id" element={<AnalysisProgress />} />
+            <Route path="/reports/:id" element={<Report />} />
+            <Route path="/history" element={<Placeholder title="Analysis History" milestone="Milestone 5b" />} />
+            <Route path="/methodology" element={<Placeholder title="Security Methodology" milestone="Milestone 5b" />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Placeholder title="Page not found" milestone="n/a" />} />
           </Routes>
         </main>
-        <footer className="border-t border-slate-200 px-6 py-3 text-xs text-slate-500">v0.1.0 · Development build · Local use only</footer>
+        <footer className="border-t border-slate-200 px-6 py-3 text-xs text-slate-500">v0.5.0 · Development build · Local use only</footer>
       </div>
     </div>
   );
