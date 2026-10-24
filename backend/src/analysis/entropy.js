@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 const BLOCK = 65536;
-const COMPRESSED = ['zip', 'docx', 'xlsx', 'pptx'];
+const COMPRESSED = ['zip', 'docx', 'xlsx', 'pptx', 'pdf'];
 
 export function shannon(buf) {
   if (!buf.length) return 0;

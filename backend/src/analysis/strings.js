@@ -10,7 +10,7 @@ export const INDICATORS = [
   { code: 'PROCESS_INJECTION_APIS', title: 'Process-injection related API names', severity: 'low', re: /VirtualAllocEx|WriteProcessMemory|CreateRemoteThread|NtUnmapViewOfSection/ },
   { code: 'PERSISTENCE', title: 'Persistence-related references', severity: 'low', re: /CurrentVersion\\Run|schtasks\s+\/create|crontab\s+-|\/etc\/cron/i },
   { code: 'SCRIPT_KEYWORDS', title: 'Script-related keywords', severity: 'low', re: /eval\(|document\.write|WScript\.Shell|ActiveXObject|<script/i },
-  { code: 'BASE64_BLOB', title: 'Long base64-like strings', severity: 'low', re: /[A-Za-z0-9+/]{200,}={0,2}/ },
+  { code: 'BASE64_BLOB', title: 'Long base64-like strings', severity: 'low', re: /[A-Za-z0-9+/]{200,}={0,2}/, exclude: /^[0-9A-Fa-f]+$/ },
 ];
 const redact = (s) => s.replace(/(password|passwd|pwd|secret|token|api[_-]?key)(\s*[=:]\s*)\S+/gi, '$1$2[REDACTED]').slice(0, SAMPLE_LEN);
 
@@ -19,9 +19,11 @@ export async function stringsModule({ filePath }) {
   let scanned = 0, stringCount = 0, carry = '';
   const handle = (s) => {
     stringCount++;
-    for (const ind of INDICATORS) if (ind.re.test(s)) {
+    for (const ind of INDICATORS) {
+      const m = s.match(ind.re);
+      if (!m || ind.exclude?.test(m[0])) continue;
       const st = stats[ind.code]; st.count++;
-      if (st.samples.length < MAX_SAMPLES) st.samples.push(redact((s.match(ind.re) || [s])[0]));
+      if (st.samples.length < MAX_SAMPLES) st.samples.push(redact(m[0]));
     }
   };
   for await (const chunk of createReadStream(filePath, { end: MAX_SCAN - 1 })) {

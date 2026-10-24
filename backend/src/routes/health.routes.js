@@ -10,7 +10,7 @@ r.get('/config/capabilities', async (_q, res) => {
     version: config.version,
     upload: { maxMb: config.maxUploadMb, categories: SUPPORTED_CATEGORIES, enabled: true },
     persistence: 'local_json_development_store',
-    modules: { staticAnalysis: 'available (run via CLI until Milestone 4)', yara: yara.available ? `available (${yara.version})` : 'unavailable' },
+    modules: { staticAnalysis: 'available', yara: yara.available ? `available (${yara.version})` : 'unavailable' },
     integrations: { database: { status: 'not_configured' }, llm: { status: 'not_configured' }, sandbox: { status: 'unavailable' } },
   });
 });
