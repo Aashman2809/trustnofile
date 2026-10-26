@@ -19,7 +19,7 @@ export default function Overview() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="overview-hero flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Welcome to TrustNoFile</h1>
           <p className="mt-1 text-sm text-slate-600">Static analysis of untrusted files, with optional isolated Linux ELF behavior analysis. Files are never executed on the host.</p>
@@ -84,7 +84,6 @@ export default function Overview() {
           <li>The optional AI layer reviews minimized evidence; application policy may request an isolated sandbox run for eligible Linux executables.</li>
           <li>A report lists static and behavioral findings separately, along with unavailable stages and assessment limits.</li>
         </ol>
-        <p className="mt-3 text-sm"><Link to="/methodology" className="text-blue-700 hover:underline">Read the full methodology</Link></p>
       </section>
     </div>
   );

@@ -1,3 +1,81 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
-body { @apply bg-slate-50 text-slate-900 antialiased; }
+
+:root {
+  font-family: "Arial", "Helvetica Neue", sans-serif;
+  color: #22231f;
+  background: #e9e4d7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --paper: #f8f2e5;
+  --canvas: #e9e4d7;
+  --ink: #22231f;
+  --muted: #66645b;
+  --line: #22231f;
+  --olive: #a9cc48;
+  --olive-dark: #8daf31;
+  --signal: #d76542;
+}
+
+* { box-sizing: border-box; }
+body { @apply antialiased; margin: 0; background: var(--canvas); color: var(--ink); }
+::selection { background: #d9eaa6; color: var(--ink); }
+
+/* Chunky, print-inspired surfaces with a restrained signal-green accent. */
+aside { background: var(--paper) !important; border-color: var(--line) !important; }
+aside > div:first-child { letter-spacing: -0.05em; text-transform: uppercase; }
+aside > div:first-child svg { color: var(--ink); stroke-width: 2.8; }
+aside nav a { border-radius: 2px !important; border: 2px solid transparent; padding-block: .7rem; font-weight: 700; }
+aside nav a[class*="bg-blue-50"] { background: var(--olive) !important; border-color: var(--line); color: var(--ink) !important; box-shadow: 3px 3px 0 var(--line); }
+aside nav a[class*="text-slate-600"] { color: #5c5e54 !important; }
+aside nav a:hover { background: #e5e1d4 !important; color: var(--ink) !important; }
+header { background: var(--paper) !important; border-color: var(--line) !important; }
+main { background-color: var(--canvas); background-image: radial-gradient(#28282018 .8px, transparent .8px); background-size: 9px 9px; }
+footer { border-color: var(--line) !important; background: var(--paper); color: var(--muted) !important; }
+
+:where(.rounded-xl, .rounded-lg, .rounded-md, .rounded-full) { border-radius: 2px !important; }
+:where(.shadow-sm, .shadow, .shadow-md) { box-shadow: 4px 4px 0 var(--line) !important; }
+:where([class*="bg-white"]) { background-color: var(--paper) !important; }
+:where([class*="border-slate-200"], [class*="border-slate-100"], [class*="border-slate-300"]) { border-color: var(--line) !important; }
+:where([class*="text-slate-900"]) { color: var(--ink) !important; }
+:where([class*="text-slate-700"], [class*="text-slate-600"], [class*="text-slate-500"]) { color: var(--muted) !important; }
+:where([class*="bg-blue-600"]) { background-color: var(--olive) !important; color: var(--ink) !important; border: 2px solid var(--line); box-shadow: 3px 3px 0 var(--line); font-weight: 800 !important; }
+:where([class*="bg-blue-600"]:hover) { background-color: var(--olive-dark) !important; transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--line); }
+:where([class*="text-blue-700"], [class*="text-blue-600"]) { color: #526822 !important; }
+:where([class*="border-blue-500"], [class*="border-blue-200"]) { border-color: var(--line) !important; }
+:where([class*="bg-blue-50"]) { background-color: #e6eccf !important; }
+
+main section, main .overflow-x-auto.rounded-xl { border: 2px solid var(--line) !important; box-shadow: 5px 5px 0 var(--line) !important; }
+main section { position: relative; }
+main section h2 { text-transform: uppercase; letter-spacing: -.02em; }
+.overview-hero { position: relative; padding: 1.25rem; border: 2px solid var(--line); background: var(--paper); box-shadow: 6px 6px 0 var(--line); }
+.overview-hero::after { content: "STATIC FILE ANALYSIS / TRUSTNOFILE"; display: block; margin-top: 1rem; padding-top: .65rem; border-top: 1px solid #aaa696; font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .13em; color: var(--muted); }
+.overview-hero h1 { font-size: clamp(1.8rem, 3.5vw, 2.8rem) !important; line-height: .98; text-transform: uppercase; max-width: 15ch; }
+main > div > div:first-child > div:first-child:not(.overview-hero) h1 { text-transform: uppercase; }
+main .grid > div[class*="border-slate-200"] { border: 2px solid var(--line) !important; box-shadow: 4px 4px 0 var(--line) !important; }
+main .grid > div[class*="border-slate-200"]:nth-child(2) svg { color: var(--signal) !important; }
+main .grid > div[class*="border-slate-200"]:nth-child(3) svg { color: #aa792e !important; }
+main .grid > div[class*="border-slate-200"]:nth-child(4) svg { color: #667c36 !important; }
+
+h1, h2, h3 { color: var(--ink); letter-spacing: -0.035em; }
+h1 { font-weight: 700 !important; }
+button, a { transition: background-color 120ms ease, color 120ms ease; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--olive); outline-offset: 2px; }
+table thead { background: #e6eccf; }
+table th { color: #34362e; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+table tbody tr:last-child { border-bottom: 0; }
+input, select { border-radius: 2px !important; }
+details pre { background: #ebe6d9 !important; border: 1px solid var(--line); }
+
+/* Keep risk and system messages distinct while softening their default neon palette. */
+:where([class*="bg-red-50"]) { background: #f4e2d9 !important; }
+:where([class*="border-red-200"]) { border-color: #a84d37 !important; }
+:where([class*="text-red-700"], [class*="text-red-800"], [class*="text-red-900"]) { color: #873e30 !important; }
+:where([class*="bg-green-50"]) { background: #e5ebd7 !important; }
+:where([class*="border-green-200"]) { border-color: #667c36 !important; }
+:where([class*="bg-amber-50"]) { background: #f0e7cf !important; }
+:where([class*="border-amber-200"]) { border-color: #aa792e !important; }
+
+@media (max-width: 767px) {
+  main { padding: 1.1rem !important; }
+}
