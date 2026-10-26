@@ -16,11 +16,11 @@ export default function Methodology() {
     <div className="max-w-3xl space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Security Methodology</h1>
-        <p className="mt-1 text-sm text-slate-600">How TrustNoFile examines a file today, and what is still planned. Uploaded files are never executed in this version.</p>
+        <p className="mt-1 text-sm text-slate-600">How TrustNoFile examines files today. Files are never executed on the host; configured sandbox runs are isolated and limited to eligible Linux executables.</p>
       </div>
 
       <Item title="File validation" state="implemented">
-        <p>The backend enforces the size limit, rejects empty files, and identifies the real format from the file signature. The browser-reported type and the extension are not trusted. Unsupported formats are rejected, and a file whose extension disagrees with its content is accepted but flagged.</p>
+        <p>The backend enforces the size limit, rejects empty files, and identifies the actual format from signatures and bounded ZIP structure. The browser-reported type and extension are untrusted metadata. Unsupported formats are rejected, and an extension/content mismatch is accepted but flagged.</p>
         <p>Files are stored under server-generated names in a private folder, never served back over the web.</p>
       </Item>
       <Item title="Hashing and file identification" state="implemented">
@@ -41,20 +41,24 @@ export default function Methodology() {
       <Item title="YARA rules" state="partial">
         <p>Supported when the YARA program is installed and rule files are placed in the configured rules folder. Otherwise the module is reported as unavailable or skipped, which is not the same as a clean scan.</p>
       </Item>
-      <Item title="AI-assisted interpretation" state="planned">
-        <p>A future phase may pass structured evidence to a language model for an additional opinion. File contents and extracted strings will be treated as untrusted data, outputs will be schema-validated, and policy will be enforced in application code. No AI analysis is performed now.</p>
+      <Item title="AI-assisted interpretation" state="partial">
+        <p>When Gemini is configured, the model receives only minimized file type/size, module status, finding codes and deterministic assessment. File bytes, filenames, extracted text, secrets and filesystem data are not sent. It has no tools, output is schema-validated, and it cannot lower deterministic risk. Provider failure leaves static results intact.</p>
       </Item>
-      <Item title="Sandbox (behavioral) analysis" state="planned">
-        <p>A future phase may run files in a disposable, isolated environment and record behavior. This is not available now, so runtime behavior is unknown. Executables are always flagged as candidates for behavioral analysis.</p>
+      <Item title="Sandbox (behavioral) analysis" state="partial">
+        <p>When Docker and the configured runner image are available, application policy can run Linux ELF files in disposable, network-disabled containers with resource limits and cleanup. Other formats remain static-only. If the sandbox is unavailable, no file is run on the host and static results remain available. Logs are untrusted evidence.</p>
       </Item>
-      <Item title="Limitations of static analysis" state="implemented">
+      <Item title="Persistence" state="partial">
+        <p>PostgreSQL repositories are selected only after a live connection check. Without a working database the app uses local JSON; those records are not durable across crashes. Analysis jobs remain in process and interrupted work must be retried.</p>
+      </Item>
+      <Item title="Analysis limitations" state="implemented">
         <ul className="list-disc space-y-1 pl-5">
           <li>Finding no indicators does not mean a file is safe. Packed, encrypted or novel malware can show nothing suspicious statically.</li>
           <li>High entropy can come from compression or encryption and is common in harmless files.</li>
           <li>Unsigned files are common and not inherently malicious; signed files can still be harmful.</li>
           <li>Heuristics can raise false alarms, especially for security tools, installers and documents with macros.</li>
           <li>Nested or encrypted archive contents are not inspected.</li>
-          <li>This is a local development tool: results are stored in plain JSON files and there is no user authentication.</li>
+          <li>Dynamic behavior is only observed for Linux ELF in the configured sandbox; other formats' runtime behavior is unknown.</li>
+          <li>This is a local development tool with no user authentication.</li>
         </ul>
       </Item>
     </div>

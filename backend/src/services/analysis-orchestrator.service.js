@@ -9,9 +9,41 @@ import { config } from '../config/env.js';
 import { newId } from '../utils/ids.js';
 import { log } from '../utils/logger.js';
 import { validateLlmResult } from '../integrations/llm/llm.interface.js';
+import { minimizeEvidence } from '../integrations/llm/evidence.js';
 
 const SEV = { high: 3, medium: 2, low: 1, info: 0 };
 const iso = () => new Date().toISOString();
+
+// Accept only application-defined behavioral event codes. Provider/container text stays
+// untrusted evidence and is never interpreted as policy or passed back into the LLM.
+function safeBehaviorFindings(value) {
+  const mapping = {
+    process_created: ['SANDBOX_PROCESS_CREATED', 'Process created in sandbox', 'low'],
+    network_attempt: ['SANDBOX_NETWORK_ATTEMPT', 'Network access attempted in restricted sandbox', 'medium'],
+    file_written: ['SANDBOX_FILE_WRITTEN', 'File written in sandbox', 'low'],
+    persistence_attempt: ['SANDBOX_PERSISTENCE_ATTEMPT', 'Persistence behavior attempted', 'high'],
+    execution_error: ['SANDBOX_EXECUTION_ERROR', 'Sandbox execution error', 'info'],
+  };
+  const events = Array.isArray(value?.events) ? value.events.slice(0, 100) : [];
+  return events.flatMap((e) => {
+    if (!e || typeof e !== 'object' || !Object.hasOwn(mapping, e.type)) return [];
+    const item = mapping[e?.type];
+    const [code, title, severity] = item;
+    return [{ module: 'sandbox', code, title, severity, kind: 'observed',
+      description: 'The isolated sandbox reported this event; associated names and text are untrusted telemetry.',
+      evidence: { type: e.type, detail: typeof e.detail === 'string' ? e.detail.slice(0, 300) : null } }];
+  });
+}
+
+function safeBehaviorData(value) {
+  const allowed = new Set(['process_created', 'network_attempt', 'file_written', 'persistence_attempt', 'execution_error']);
+  const events = (Array.isArray(value?.events) ? value.events : []).slice(0, 100).flatMap((e) => {
+    if (!e || typeof e !== 'object' || !allowed.has(e.type)) return [];
+    return [{ type: e.type, detail: typeof e.detail === 'string' ? e.detail.slice(0, 300) : null }];
+  });
+  return { events, exitCode: Number.isInteger(value?.exitCode) && value.exitCode >= -255 && value.exitCode <= 255 ? value.exitCode : null,
+    ...(value?.outputMalformed === true ? { outputMalformed: true } : {}) };
+}
 
 export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = runStaticAnalysis, storageDir = config.storageDir, integrations = null }) {
   const locks = new Map();
@@ -46,29 +78,73 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
       await step('STATIC_ANALYSIS');
       const result = await runStatic({ filePath, file });
 
-      const evidence = { modules: result.modules, findings: [...result.findings].sort((x, y) => SEV[y.severity] - SEV[x.severity]), summary: result.summary };
+      let evidence = { modules: result.modules, findings: [...result.findings].sort((x, y) => SEV[y.severity] - SEV[x.severity]), summary: result.summary };
       await step('AGGREGATING_EVIDENCE', null, { evidence });
 
       await step('ASSESSING_RISK');
       const assessment = assessRisk({ findings: evidence.findings, modules: evidence.modules, file });
 
-      await step('GENERATING_REPORT', null, { assessment });
-      // Optional LLM layer: runs only if explicitly configured; its failure never fails the analysis.
-      let ai;
-      if (integrations?.llm?.getStatus().status === 'configured') {
-        const failed = { status: 'error', message: 'LLM analysis failed or returned invalid output; static results are unaffected.' };
-        try {
-          const raw = await integrations.llm.analyzeEvidence({
+      await step('AI_DECISION', null, { assessment });
+      let ai = { status: 'not_configured', message: 'LLM integration not configured.', riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [] };
+      try {
+        const llmStatus = await integrations?.llm?.getStatus?.();
+        if (llmStatus?.status === 'configured') {
+          const raw = await integrations.llm.analyzeEvidence(minimizeEvidence({
             fileMetadata: { size: file.size, format: file.detected?.format, mime: file.detected?.mime, sha256: file.sha256 },
-            staticEvidence: evidence, preliminaryAssessment: assessment, context: { phase: 'static_only' } });
+            staticEvidence: evidence, preliminaryAssessment: assessment, context: { phase: 'static_only' },
+          }));
           const v = validateLlmResult(raw);
-          if (!v.ok) log('error', 'llm_invalid_output', { analysisId: id });
-          ai = v.ok ? v.value : failed;
-        } catch { log('error', 'llm_failed', { analysisId: id }); ai = failed; }
+          if (!v.ok || raw.status !== 'completed') throw new Error('invalid LLM response');
+          ai = { ...v.value, message: null };
+        } else if (llmStatus?.status === 'unavailable') {
+          ai = { ...ai, status: 'error', message: 'The configured LLM provider is unavailable; deterministic results are unaffected.' };
+        }
+      } catch (err) {
+        // Provider exception messages can contain request details; keep them out of logs.
+        log('error', 'llm_failed', { analysisId: id, error: 'provider_request_failed' });
+        ai = { status: 'error', message: 'LLM analysis failed or returned invalid output; deterministic results are unaffected.', riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [] };
       }
+
+      const aiWarrantsSandbox = ai.sandboxRecommended === true && (assessment.riskLevel !== 'low' || assessment.confidence === 'low'
+        || ['moderate', 'high', 'very_high', 'insufficient_evidence'].includes(ai.riskAssessment));
+      const sandboxPolicy = assessment.sandboxRecommended || aiWarrantsSandbox;
+      let behavioral = { status: 'not_required', message: 'Policy did not require sandbox analysis.' };
+      let finalAssessment = assessment;
+      if (sandboxPolicy) {
+        await step('SANDBOX_ANALYSIS');
+        try {
+          if ((await integrations?.sandbox?.getStatus?.())?.status === 'available') {
+            const raw = await integrations.sandbox.run({ fileRef: filePath, timeoutMs: config.sandboxTimeoutMs || 30000 });
+            if (raw && ['completed', 'timeout', 'failed', 'unavailable'].includes(raw.status)) {
+              const behaviorData = safeBehaviorData(raw.behavioralEvidence);
+              behavioral = { status: raw.status, message: typeof raw.message === 'string' ? raw.message.slice(0, 300) : null, behavioralEvidence: behaviorData,
+                logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 100).map((x) => String(x).slice(0, 2000)) : [],
+                artifacts: Array.isArray(raw.artifacts) ? raw.artifacts.slice(0, 20).flatMap((x) => x && typeof x === 'object' && typeof x.name === 'string'
+                  ? [{ name: x.name.slice(0, 200), size: Number.isSafeInteger(x.size) ? Math.max(0, Math.min(x.size, 10 * 1024 * 1024)) : null }] : []) : [] };
+              const ev = raw.status === 'completed' ? safeBehaviorFindings(behaviorData) : [];
+              if (raw.status === 'completed') {
+                behavioral.findings = ev;
+                evidence = { ...evidence, behavioralFindings: ev };
+                finalAssessment = assessRisk({ findings: [...evidence.findings, ...ev], modules: evidence.modules, file });
+                finalAssessment.limitations = finalAssessment.limitations.filter((x) => !x.startsWith('Behavioral (sandbox) analysis was not performed'));
+                finalAssessment.evidenceSufficiency = 'combined_static_and_behavioral';
+              }
+            }
+          } else behavioral = { status: 'unavailable', message: 'Sandbox integration is unavailable; no file was executed.' };
+        } catch (err) {
+          log('error', 'sandbox_failed', { analysisId: id, error: String(err.message).slice(0, 120) });
+          behavioral = { status: 'failed', message: 'Sandbox analysis failed; no host execution was attempted.' };
+        }
+      } else {
+        // Mark the optional stage explicitly as skipped in persisted stage history.
+        const stage = a.stages.find((s) => s.name === 'sandbox_analysis');
+        if (stage) { stage.status = 'skipped'; stage.note = 'Policy did not require sandbox analysis.'; }
+        a = await analysisRepo.update(id, { stages: a.stages });
+      }
+      await step('GENERATING_REPORT', null, { assessment: finalAssessment });
       const partial = evidence.summary.failed + evidence.summary.timeout > 0;
       const status = partial ? 'PARTIAL' : 'COMPLETED', now = iso();
-      const report = buildReport({ analysisId: id, status, startedAt: a.startedAt, finishedAt: now, file, evidence, assessment, now, ai });
+      const report = buildReport({ analysisId: id, status, startedAt: a.startedAt, finishedAt: now, file, evidence, assessment: finalAssessment, now, ai, behavioral });
       await step(status, partial ? 'One or more modules failed; results are partial.' : null, { report });
     } catch (err) {
       log('error', 'analysis_failed', { analysisId: id, state: a.status, error: String(err.message).slice(0, 200) });

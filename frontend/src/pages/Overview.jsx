@@ -22,7 +22,7 @@ export default function Overview() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Welcome to TrustNoFile</h1>
-          <p className="mt-1 text-sm text-slate-600">Static analysis of untrusted files. Files are never executed.</p>
+          <p className="mt-1 text-sm text-slate-600">Static analysis of untrusted files, with optional isolated Linux ELF behavior analysis. Files are never executed on the host.</p>
         </div>
         <Link to="/analyze" className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"><FileSearch size={16} /> Analyze a File</Link>
       </div>
@@ -38,7 +38,7 @@ export default function Overview() {
             <Stat icon={Shield} label="Medium-risk assessments" value={stats.byRisk.moderate} tone="text-amber-600" />
             <Stat icon={ShieldCheck} label="Low-risk assessments" value={stats.byRisk.low} tone="text-green-600" />
           </div>
-          <p className="text-xs text-slate-500">Counts include finished analyses stored in the local development store, which is not durable. “Low” means no strong indicators were found, not that a file is safe.
+          <p className="text-xs text-slate-500">Counts include finished analyses stored in {stats.persistence === 'postgresql' ? 'PostgreSQL' : 'the local development store, which is not durable'}. “Low” means no strong indicators were found, not that a file is safe.
             {stats.byRisk.insufficient_evidence > 0 && ` ${stats.byRisk.insufficient_evidence} assessment(s) had insufficient evidence.`}</p>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -76,12 +76,13 @@ export default function Overview() {
       )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold">How the static-analysis workflow works</h2>
+        <h2 className="text-base font-semibold">How the analysis workflow works</h2>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
           <li>The file is uploaded, size-checked and identified by its signature, not its extension.</li>
           <li>Independent modules inspect it without running it: hashes, metadata, strings, entropy, archive structure, and optional YARA rules.</li>
           <li>A deterministic, explainable rule set turns the evidence into a heuristic risk score.</li>
-          <li>A report lists the findings, the modules that could not run, and the limits of the assessment.</li>
+          <li>The optional AI layer reviews minimized evidence; application policy may request an isolated sandbox run for eligible Linux executables.</li>
+          <li>A report lists static and behavioral findings separately, along with unavailable stages and assessment limits.</li>
         </ol>
         <p className="mt-3 text-sm"><Link to="/methodology" className="text-blue-700 hover:underline">Read the full methodology</Link></p>
       </section>

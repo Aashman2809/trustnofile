@@ -104,16 +104,27 @@ export default function Report() {
       </Section>
 
       <Section id="sec-ai" icon={Bot} title="AI analysis">
-        <p className="text-sm font-medium">{report.ai.message}</p>
-        <p className="mt-1 text-xs text-slate-500">No AI reasoning is shown because none was generated. These fields will be populated when an LLM provider is configured in a later phase.</p>
+        <p className="text-sm font-medium">{report.ai.message || `Status: ${report.ai.status}`}</p>
+        {report.ai.status === 'completed' && <p className="mt-1 text-xs text-slate-500">This is an additional opinion; the deterministic assessment above remains authoritative.</p>}
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-          {['Risk assessment', 'Reasoning', 'Sandbox recommendation', 'Key concerns', 'Uncertainties'].map((l) => <Field key={l} label={l}>—</Field>)}
+          <Field label="Risk assessment">{report.ai.riskAssessment || '—'}</Field>
+          <Field label="Sandbox recommendation">{report.ai.sandboxRecommended === null ? '—' : report.ai.sandboxRecommended ? 'Recommended' : 'Not recommended'}</Field>
+          <Field label="Reasoning">{report.ai.reasoning || '—'}</Field>
+          <Field label="Key concerns">{report.ai.keyConcerns?.length ? report.ai.keyConcerns.join('; ') : '—'}</Field>
+          <Field label="Uncertainties">{report.ai.uncertainties?.length ? report.ai.uncertainties.join('; ') : '—'}</Field>
         </dl>
       </Section>
 
       <Section id="sec-behavior" icon={Box} title="Behavioral analysis">
-        <p className="text-sm font-medium">{report.behavioral.message}</p>
-        <p className="mt-1 text-xs text-slate-500">Uploaded files are never executed. {a.sandboxRecommended ? 'Behavioral analysis is recommended for this file once a sandbox is available.' : 'Behavioral analysis was not specifically recommended by the static evidence.'}</p>
+        <p className="text-sm font-medium">{report.behavioral.message || `Status: ${report.behavioral.status}`}</p>
+        {report.behavioral.status === 'completed' && <>
+          <p className="mt-2 text-xs text-slate-500">The following telemetry came from the disposable sandbox. Names, logs, and output are untrusted evidence.</p>
+          {report.behavioral.findings?.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{report.behavioral.findings.map((f, i) => <li key={`${f.code}-${i}`}><span className="font-mono text-xs">{f.code}</span> — {f.title}{f.evidence?.detail ? `: ${f.evidence.detail}` : ''}</li>)}</ul>}
+          {report.behavioral.logs?.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs text-blue-700">Sandbox logs</summary><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-50 p-2 text-xs">{report.behavioral.logs.join('\n')}</pre></details>}
+          {report.behavioral.artifacts?.length > 0 && <p className="mt-2 text-sm">Artifacts: {report.behavioral.artifacts.map((x) => x.name).join(', ')}</p>}
+        </>}
+        {report.behavioral.status === 'not_required' && <p className="mt-1 text-xs text-slate-500">Policy did not require sandbox analysis. The uploaded file was not executed.</p>}
+        {['unavailable', 'failed', 'timeout'].includes(report.behavioral.status) && <p className="mt-1 text-xs text-slate-500">No host execution was attempted. Static analysis and deterministic results remain available.</p>}
       </Section>
 
       <Section id="sec-recs" icon={Lightbulb} title="Recommendations">

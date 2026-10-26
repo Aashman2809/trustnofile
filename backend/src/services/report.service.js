@@ -7,7 +7,7 @@
  *   recommendations[{text,basedOn[]}], disclaimer }
  * Findings are "observed" (facts read from the file) or "heuristic" (interpretations that may be benign).
  */
-export function buildRecommendations(findings, assessment) {
+export function buildRecommendations(findings, assessment, behavioral = null) {
   const has = (c) => findings.some((f) => f.code === c);
   const out = [];
   const add = (text, basedOn = []) => out.push({ text, basedOn });
@@ -21,12 +21,14 @@ export function buildRecommendations(findings, assessment) {
   if (notable.length && out.length < 2) add('Review the listed indicators in context; none is conclusive on its own.', notable.map((f) => f.code));
   if (['moderate', 'high', 'very_high'].includes(assessment.riskLevel)) add('Keep the file quarantined pending further inspection.');
   if (assessment.riskLevel === 'insufficient_evidence') add('Evidence was insufficient; re-run the analysis or submit the file for additional analysis.');
-  if (assessment.sandboxRecommended) add('Submit the file for behavioral (sandbox) analysis when that capability becomes available.');
+  if (assessment.sandboxRecommended && behavioral?.status === 'completed') add('Review the collected static and behavioral evidence together.');
+  else if (assessment.sandboxRecommended && ['unavailable', 'failed', 'timeout'].includes(behavioral?.status)) add('Behavioral analysis was recommended but did not complete; keep the file quarantined pending further review.');
+  else if (assessment.sandboxRecommended) add('Submit the file for behavioral (sandbox) analysis when that capability becomes available.');
   if (assessment.noIndicatorsDetected) add('No indicators were detected, which is not a safety verdict; apply normal caution to files from unknown sources.');
   return out;
 }
 
-export function buildReport({ analysisId, status, startedAt, finishedAt, file, evidence, assessment, now, ai }) {
+export function buildReport({ analysisId, status, startedAt, finishedAt, file, evidence, assessment, now, ai, behavioral }) {
   const { storedName, ...safeFile } = file;
   return {
     schemaVersion: '1.0', generatedAt: now,
@@ -39,9 +41,9 @@ export function buildReport({ analysisId, status, startedAt, finishedAt, file, e
       findings: evidence.findings,
     },
     ai: { message: null, riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [], ...(ai || { status: 'not_configured', message: 'LLM integration not configured.' }) },
-    behavioral: { status: 'unavailable', message: 'Sandbox analysis is not available in the current version.' },
-    recommendations: buildRecommendations(evidence.findings, assessment),
-    disclaimer: 'Static analysis only. The score is an application-defined heuristic, not a malware probability, and absence of indicators does not mean a file is safe.',
+    behavioral: behavioral || { status: 'unavailable', message: 'Sandbox analysis was not run.' },
+    recommendations: buildRecommendations([...evidence.findings, ...(behavioral?.findings || [])], assessment, behavioral),
+    disclaimer: 'The score is an application-defined heuristic, not a malware probability, and absence of indicators does not mean a file is safe.',
   };
 }
 

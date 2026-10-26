@@ -40,7 +40,7 @@ export default function Analyze() {
   return (
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold">Analyze File</h1>
-      <p className="mt-1 text-sm text-slate-600">Files are validated and stored privately. Uploaded files are never executed. Analysis starts only when you press “Start analysis”.</p>
+      <p className="mt-1 text-sm text-slate-600">Files are validated and stored privately. They are never executed on the host; eligible Linux executables may run only in a configured isolated sandbox when policy selects them. Analysis starts only when you press “Start analysis”.</p>
 
       <div
         role="button" tabIndex={0} aria-label="Select a file to upload"

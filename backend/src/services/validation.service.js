@@ -15,7 +15,7 @@ export async function validateType(filePath, declaredExt, size) {
     const policy = FORMATS[id.format];
     if (!policy) return { accepted: false, reason: `Detected format "${id.format}" is not supported.` };
     return { accepted: true, mismatch: !policy.family.includes(declaredExt),
-      detected: { format: id.format, mime: id.mime, category: policy.category } };
+      detected: { format: id.format, mime: id.mime, category: policy.category, signature: id.signatureName ?? null } };
   }
   let detected = { format: 'text', mime: 'text/plain', category: 'Plain text' };
   let mismatch = !TEXT_EXTS.includes(declaredExt);

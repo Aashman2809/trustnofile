@@ -6,7 +6,7 @@ import { api } from '../services/api.js';
 const TERMINAL = ['COMPLETED', 'PARTIAL', 'FAILED', 'REJECTED'];
 const LABELS = {
   upload: 'Upload complete', validation: 'File validation', static_analysis: 'Static analysis',
-  evidence_aggregation: 'Evidence aggregation', risk_assessment: 'Risk assessment', report_generation: 'Report generation',
+  evidence_aggregation: 'Evidence aggregation', risk_assessment: 'Risk assessment', ai_decision: 'AI decision', sandbox_analysis: 'Sandbox analysis', report_generation: 'Report generation',
 };
 const ICON = {
   completed: <CheckCircle2 size={20} className="text-green-600" aria-label="completed" />,
