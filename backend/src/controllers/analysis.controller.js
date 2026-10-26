@@ -5,7 +5,7 @@ import { RISK_LEVELS } from '../services/risk-assessment.service.js';
 import { toSummary } from '../services/report.service.js';
 import { computeStats } from '../services/stats.service.js';
 
-export const analysisController = ({ orchestrator, analysisRepo }) => {
+export const analysisController = ({ orchestrator, analysisRepo, persistence = 'local_json_development_store' }) => {
   const load = async (id) => {
     if (!isUuid(id)) throw new AppError(400, 'INVALID_ID', 'Analysis ID must be a valid UUID.');
     const a = await analysisRepo.getById(id.toLowerCase());
@@ -38,7 +38,7 @@ export const analysisController = ({ orchestrator, analysisRepo }) => {
       try {
         const { items } = await analysisRepo.list({ page: 1, pageSize: Number.MAX_SAFE_INTEGER });
         const s = computeStats(items);
-        res.json({ ...s, recent: s.recent.map(toSummary), persistence: 'local_json_development_store' });
+        res.json({ ...s, recent: s.recent.map(toSummary), persistence });
       } catch (e) { next(e); }
     },
     get: async (req, res, next) => { try { res.json({ analysis: toSummary(await load(req.params.id)) }); } catch (e) { next(e); } },

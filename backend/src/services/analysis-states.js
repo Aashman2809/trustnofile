@@ -1,17 +1,19 @@
-export const STATES = ['UPLOADED', 'VALIDATING', 'STATIC_ANALYSIS', 'AGGREGATING_EVIDENCE', 'ASSESSING_RISK', 'GENERATING_REPORT', 'COMPLETED', 'PARTIAL', 'FAILED', 'REJECTED'];
+export const STATES = ['UPLOADED', 'VALIDATING', 'STATIC_ANALYSIS', 'AGGREGATING_EVIDENCE', 'ASSESSING_RISK', 'AI_DECISION', 'SANDBOX_ANALYSIS', 'GENERATING_REPORT', 'COMPLETED', 'PARTIAL', 'FAILED', 'REJECTED'];
 export const TERMINAL = ['COMPLETED', 'PARTIAL', 'FAILED', 'REJECTED'];
 export const TRANSITIONS = {
   UPLOADED: ['VALIDATING', 'FAILED'],
   VALIDATING: ['STATIC_ANALYSIS', 'REJECTED', 'FAILED'],
   STATIC_ANALYSIS: ['AGGREGATING_EVIDENCE', 'FAILED'],
   AGGREGATING_EVIDENCE: ['ASSESSING_RISK', 'FAILED'],
-  ASSESSING_RISK: ['GENERATING_REPORT', 'FAILED'],
+  ASSESSING_RISK: ['AI_DECISION', 'FAILED'],
+  AI_DECISION: ['SANDBOX_ANALYSIS', 'GENERATING_REPORT', 'FAILED'],
+  SANDBOX_ANALYSIS: ['GENERATING_REPORT', 'FAILED'],
   GENERATING_REPORT: ['COMPLETED', 'PARTIAL', 'FAILED'],
 };
 export const canTransition = (from, to) => TRANSITIONS[from]?.includes(to) ?? false;
 
-export const STAGES = ['upload', 'validation', 'static_analysis', 'evidence_aggregation', 'risk_assessment', 'report_generation'];
-const STATE_STAGE = { VALIDATING: 'validation', STATIC_ANALYSIS: 'static_analysis', AGGREGATING_EVIDENCE: 'evidence_aggregation', ASSESSING_RISK: 'risk_assessment', GENERATING_REPORT: 'report_generation' };
+export const STAGES = ['upload', 'validation', 'static_analysis', 'evidence_aggregation', 'risk_assessment', 'ai_decision', 'sandbox_analysis', 'report_generation'];
+const STATE_STAGE = { VALIDATING: 'validation', STATIC_ANALYSIS: 'static_analysis', AGGREGATING_EVIDENCE: 'evidence_aggregation', ASSESSING_RISK: 'risk_assessment', AI_DECISION: 'ai_decision', SANDBOX_ANALYSIS: 'sandbox_analysis', GENERATING_REPORT: 'report_generation' };
 // stage status: pending | active | completed | skipped | failed
 export const initialStages = (now) => STAGES.map((name, i) => ({ name, status: i === 0 ? 'completed' : 'pending', startedAt: i === 0 ? now : null, finishedAt: i === 0 ? now : null, note: null }));
 

@@ -83,7 +83,7 @@ test('stages: failure marks active stage failed and the rest skipped', () => {
   let s = initialStages('t0');
   s = applyTransition(s, 'VALIDATING', 't1'); s = applyTransition(s, 'STATIC_ANALYSIS', 't2'); s = applyTransition(s, 'FAILED', 't3', 'boom');
   const by = Object.fromEntries(s.map((x) => [x.name, x.status]));
-  assert.deepEqual(by, { upload: 'completed', validation: 'completed', static_analysis: 'failed', evidence_aggregation: 'skipped', risk_assessment: 'skipped', report_generation: 'skipped' });
+  assert.deepEqual(by, { upload: 'completed', validation: 'completed', static_analysis: 'failed', evidence_aggregation: 'skipped', risk_assessment: 'skipped', ai_decision: 'skipped', sandbox_analysis: 'skipped', report_generation: 'skipped' });
 });
 
 // ---------- orchestrator ----------
@@ -93,9 +93,10 @@ test('orchestrator: successful analysis produces evidence, assessment and report
   await jobs.onIdle();
   const a = await analysisRepo.getById(r.analysis.id);
   assert.equal(a.status, 'COMPLETED');
-  assert.ok(a.stages.every((s) => s.status === 'completed'));
+  assert.ok(a.stages.filter((s) => s.name !== 'sandbox_analysis').every((s) => s.status === 'completed'));
+  assert.equal(a.stages.find((s) => s.name === 'sandbox_analysis').status, 'skipped');
   assert.equal(a.assessment.riskLevel, 'low');
-  assert.equal(a.report.ai.status, 'not_configured'); assert.equal(a.report.behavioral.status, 'unavailable');
+  assert.equal(a.report.ai.status, 'not_configured'); assert.equal(a.report.behavioral.status, 'not_required');
   assert.equal(a.report.file.storedName, undefined);
   assert.equal(a.evidence.modules.find((m) => m.module === 'yara').status, 'unavailable');
 });

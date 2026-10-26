@@ -9,6 +9,11 @@ export const FORMATS = {
   pptx: { category: 'Office document', family: ['pptx'] },
   cfb:  { category: 'Office document (legacy)', family: ['doc', 'xls', 'ppt'] },
   zip:  { category: 'ZIP archive', family: ['zip'] },
+  png:  { category: 'Image', family: ['png'] },
+  jpg:  { category: 'Image', family: ['jpg', 'jpeg'] },
+  gif:  { category: 'Image', family: ['gif'] },
+  webp: { category: 'Image', family: ['webp'] },
+  bmp:  { category: 'Image', family: ['bmp'] },
 };
 export const TEXT_EXTS = ['txt', 'log', 'md', 'csv', 'json'];
 export const SUPPORTED_CATEGORIES = [...new Set(Object.values(FORMATS).map((f) => f.category)), 'Plain text', 'JSON'];
