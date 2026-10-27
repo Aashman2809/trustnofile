@@ -4,6 +4,7 @@ import { createDisabledLlm } from './llm/llm.mock.js';
 import { createDisabledDatabase } from './database/database.disabled.js';
 import { createPostgresAdapter } from './database/postgres.adapter.js';
 import { createDockerSandbox } from './sandbox/sandbox.docker.js';
+import { createRemoteSandbox } from './sandbox/sandbox.remote.js';
 import { createLocalObjectStorage } from './storage/storage.local.js';
 import { createSupabaseObjectStorage } from './storage/storage.supabase.js';
 
@@ -25,7 +26,10 @@ export function createIntegrations(overrides = {}, settings = config.llm) {
   const database = process.env.DATABASE_URL ? createPostgresAdapter() : createDisabledDatabase();
   if (!['local', 'supabase'].includes(config.storageProvider)) throw new Error('STORAGE_PROVIDER must be local or supabase.');
   const storage = config.storageProvider === 'supabase' ? createSupabaseObjectStorage() : createLocalObjectStorage();
-  const all = { llm: createLlmProvider(settings), database, sandbox: createDockerSandbox(), storage, ...overrides };
+  const sandbox = config.sandboxWorkerUrl || config.sandboxWorkerToken
+    ? createRemoteSandbox({ url: config.sandboxWorkerUrl, token: config.sandboxWorkerToken })
+    : createDockerSandbox();
+  const all = { llm: createLlmProvider(settings), database, sandbox, storage, ...overrides };
   for (const [name, methods] of Object.entries(CONTRACTS)) {
     for (const m of methods) if (typeof all[name]?.[m] !== 'function') throw new Error(`${name} adapter must implement ${m}()`);
   }

@@ -22,6 +22,9 @@ export const config = {
   yaraRulesDir: path.resolve(process.env.YARA_RULES_DIR || path.join(root, 'rules')),
   moduleTimeoutMs: Number(process.env.MODULE_TIMEOUT_MS) || 30000,
   sandboxTimeoutMs: Number(process.env.SANDBOX_TIMEOUT_MS) || 30000,
+  sandboxWorkerUrl: (process.env.SANDBOX_WORKER_URL || '').trim().replace(/\/$/, ''),
+  sandboxWorkerToken: process.env.SANDBOX_WORKER_TOKEN || '',
+  sandboxWorkerPort: Number(process.env.SANDBOX_WORKER_PORT) || 4100,
   llm: {
     provider: (process.env.LLM_PROVIDER || 'gemini').trim().toLowerCase(),
     geminiApiKey: process.env.GEMINI_API_KEY || '',

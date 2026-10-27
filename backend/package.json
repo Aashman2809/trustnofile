@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "sandbox-worker": "node src/sandbox-worker/server.js",
     "scan": "node scripts/scan.js",
     "rules:sync": "node scripts/sync-yara-rules.js",
     "eval:corpus": "node scripts/evaluate-corpus.js",

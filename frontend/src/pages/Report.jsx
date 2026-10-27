@@ -19,6 +19,7 @@ export default function Report() {
   const { id } = useParams();
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
+  const [downloadError, setDownloadError] = useState('');
   const [messages, setMessages] = useState([]);
   const [query, setQuery] = useState('');
   const [chatLoading, setChatLoading] = useState(false);

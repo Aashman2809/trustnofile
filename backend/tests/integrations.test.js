@@ -10,6 +10,8 @@ process.env.YARA_PATH = 'definitely-not-installed-yara';
 // Creates a temporary test directory.
 const mk = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const [dataA, dataB, storage] = [mk('tnf-a-'), mk('tnf-b-'), mk('tnf-sto-')];
+process.env.STORAGE_PROVIDER = 'local';
+process.env.STORAGE_DIR = storage;
 const { createIntegrations } = await import('../src/integrations/index.js');
 const { validateLlmResult } = await import('../src/integrations/llm/llm.interface.js');
 const { createOrchestrator } = await import('../src/services/analysis-orchestrator.service.js');
