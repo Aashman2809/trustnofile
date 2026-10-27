@@ -37,4 +37,9 @@ export const api = {
   getAnalysis: (id) => request(`/analyses/${id}`),
   getReport: (id) => request(`/analyses/${id}/report`),
   reportDownloadUrl: (id) => `/api/analyses/${id}/report.json`,
+  chatWithReport: (id, question, history = []) => request(`/analyses/${id}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, history }),
+  }),
 };

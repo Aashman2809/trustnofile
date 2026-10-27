@@ -8,5 +8,8 @@ export function createDisabledLlm() {
 
     // Analyzes the collected evidence.
     analyzeEvidence: async () => ({ status: 'not_configured', riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [] }),
+
+    // Handles chat request.
+    chat: async () => { throw new Error('LLM integration not configured'); },
   };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Download, FileText, ShieldAlert, ListChecks, Bot, Box, Lightbulb, AlertTriangle } from 'lucide-react';
+import { Download, FileText, ShieldAlert, ListChecks, Bot, Box, Lightbulb, AlertTriangle, Send, MessageSquareCode } from 'lucide-react';
 import { api } from '../services/api.js';
 import { RiskBadge, SeverityBadge, ModuleStatusBadge } from '../components/Badges.jsx';
 import { formatBytes, formatDate } from '../lib/format.js';
@@ -19,7 +19,33 @@ export default function Report() {
   const { id } = useParams();
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { api.getReport(id).then(({ report: r }) => setReport(r)).catch((e) => setError(e.message)); }, [id]);
+  const [messages, setMessages] = useState([]);
+  const [query, setQuery] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+
+  const handleSendChat = async (e) => {
+    e?.preventDefault();
+    const q = query.trim();
+    if (!q || chatLoading) return;
+    const userMsg = { role: 'user', content: q };
+    setMessages((prev) => [...prev, userMsg]);
+    setQuery('');
+    setChatLoading(true);
+    setChatError('');
+    try {
+      const res = await api.chatWithReport(id, q, messages);
+      setMessages((prev) => [...prev, { role: 'model', content: res.reply }]);
+    } catch (err) {
+      setChatError(err.message || 'Failed to get answer from AI Copilot');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    api.getReport(id).then(({ report: r }) => setReport(r)).catch((e) => setError(e.message));
+  }, [id]);
 
   if (error) return (
     <div className="max-w-2xl">
@@ -126,6 +152,12 @@ export default function Report() {
       <Section id="sec-ai" icon={Bot} title="AI analysis">
         <p className="text-sm font-medium">{report.ai.message || `Status: ${report.ai.status}`}</p>
         {report.ai.status === 'completed' && <p className="mt-1 text-xs text-slate-500">This is an additional opinion; the deterministic assessment above remains authoritative.</p>}
+        {report.ai.narrative && (
+          <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3.5 text-sm text-indigo-950">
+            <span className="font-semibold uppercase tracking-wider text-xs text-indigo-700 block mb-1">Executive Threat Narrative</span>
+            {report.ai.narrative}
+          </div>
+        )}
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="Risk assessment">{report.ai.riskAssessment || '—'}</Field>
           <Field label="Sandbox recommendation">{report.ai.sandboxRecommended === null ? '—' : report.ai.sandboxRecommended ? 'Recommended' : 'Not recommended'}</Field>
@@ -133,6 +165,27 @@ export default function Report() {
           <Field label="Key concerns">{report.ai.keyConcerns?.length ? report.ai.keyConcerns.join('; ') : '—'}</Field>
           <Field label="Uncertainties">{report.ai.uncertainties?.length ? report.ai.uncertainties.join('; ') : '—'}</Field>
         </dl>
+
+        {report.ai.mitreAttAndCk?.length > 0 && (
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Mapped MITRE ATT&CK Techniques</h3>
+            <div className="flex flex-wrap gap-2">
+              {report.ai.mitreAttAndCk.map((m, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 rounded border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs text-slate-800 shadow-sm">
+                  <span className="font-mono font-bold text-blue-700">{m.techniqueId}</span>
+                  <span className="text-slate-400">|</span>
+                  <span className="font-medium">{m.techniqueName}</span>
+                  <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[10px] uppercase font-semibold text-slate-600">{m.tactic}</span>
+                  {m.confidence && (
+                    <span className={`text-[10px] px-1 rounded ${m.confidence === 'confirmed' ? 'bg-red-100 text-red-700 font-medium' : 'bg-amber-100 text-amber-700'}`}>
+                      {m.confidence}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section id="sec-behavior" icon={Box} title="Behavioral analysis">
@@ -145,6 +198,83 @@ export default function Report() {
         </>}
         {report.behavioral.status === 'not_required' && <p className="mt-1 text-xs text-slate-500">Policy did not require sandbox analysis. The uploaded file was not executed.</p>}
         {['unavailable', 'failed', 'timeout'].includes(report.behavioral.status) && <p className="mt-1 text-xs text-slate-500">No host execution was attempted. Static analysis and deterministic results remain available.</p>}
+      </Section>
+
+      <Section id="sec-chat" icon={MessageSquareCode} title="AI Threat Copilot (Interactive Investigation)">
+        <p className="text-xs text-slate-500 mb-3">
+          Ask specific technical questions about this file&apos;s findings, suspicious strings, entropy, or MITRE techniques. Answers are grounded exclusively in this report.
+        </p>
+
+        {messages.length > 0 && (
+          <div className="mb-4 max-h-72 overflow-y-auto space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <span className="text-[10px] font-semibold uppercase text-slate-600 mb-0.5">
+                  {m.role === 'user' ? 'You' : 'Copilot'}
+                </span>
+                <div className={`rounded-lg px-3 py-2 max-w-[85%] whitespace-pre-wrap ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-800'}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 italic">
+                <Bot size={14} className="animate-spin text-blue-600" /> Copilot is analyzing findings...
+              </div>
+            )}
+          </div>
+        )}
+
+        {chatError && (
+          <p className="mb-3 text-xs text-red-600 flex items-center gap-1">
+            <AlertTriangle size={14} /> {chatError}
+          </p>
+        )}
+
+        <form onSubmit={handleSendChat} className="flex gap-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g., Why was this classified as low/moderate? Explain the PowerShell indicators..."
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            disabled={chatLoading}
+          />
+          <button
+            type="submit"
+            disabled={chatLoading || !query.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Send size={15} /> Send
+          </button>
+        </form>
+
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-slate-500">
+          <span>Suggestions:</span>
+          <button
+            type="button"
+            onClick={() => setQuery('Why was this risk level assigned?')}
+            className="underline hover:text-blue-700"
+          >
+            Why this risk level?
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={() => setQuery('Are there any signs of obfuscation or persistence?')}
+            className="underline hover:text-blue-700"
+          >
+            Signs of obfuscation?
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={() => setQuery('What should be the next triage step for this file?')}
+            className="underline hover:text-blue-700"
+          >
+            Next triage step?
+          </button>
+        </div>
       </Section>
 
       <Section id="sec-recs" icon={Lightbulb} title="Recommendations">

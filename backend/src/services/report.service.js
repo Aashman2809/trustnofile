@@ -44,7 +44,7 @@ export function buildReport({ analysisId, status, startedAt, finishedAt, file, e
       modules: evidence.modules.map(/* Transforms each item in the collection. */ ({ module, status: s, reason, durationMs, errors }) => ({ module, status: s, reason: reason ?? null, durationMs, errors })),
       findings: evidence.findings,
     },
-    ai: { message: null, riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [], ...(ai || { status: 'not_configured', message: 'LLM integration not configured.' }) },
+    ai: { message: null, riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [], mitreAttAndCk: [], narrative: null, ...(ai || { status: 'not_configured', message: 'LLM integration not configured.' }) },
     behavioral: behavioral || { status: 'unavailable', message: 'Sandbox analysis was not run.' },
     recommendations: buildRecommendations([...evidence.findings, ...(behavioral?.findings || [])], assessment, behavioral),
     disclaimer: 'The score is an application-defined heuristic, not a malware probability, and absence of indicators does not mean a file is safe.',

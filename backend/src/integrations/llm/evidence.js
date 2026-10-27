@@ -40,6 +40,14 @@ export function minimizeEvidence({ fileMetadata = {}, staticEvidence = {}, preli
       reasons: (Array.isArray(preliminaryAssessment.reasons) ? preliminaryAssessment.reasons : []).slice(0, 50).map(/* Transforms each item in the collection. */ (r) => ({ code: CODES.has(r.code) ? r.code : 'UNKNOWN' })),
       sandboxRecommended: preliminaryAssessment.sandboxRecommended === true,
     },
-    context: { phase: context.phase === 'static_only' ? 'static_only' : 'analysis' },
+    behavioralEvidence: context.behavioralEvidence ? {
+      status: context.behavioralEvidence.status,
+      findingsCount: Array.isArray(context.behavioralEvidence.findings) ? context.behavioralEvidence.findings.length : 0,
+      summary: (Array.isArray(context.behavioralEvidence.findings) ? context.behavioralEvidence.findings : []).slice(0, 20).map((b) => ({
+        code: typeof b.code === 'string' ? b.code.slice(0, 50) : 'UNKNOWN',
+        title: typeof b.title === 'string' ? b.title.slice(0, 100) : '',
+      })),
+    } : null,
+    context: { phase: context.phase === 'post_sandbox' ? 'post_sandbox' : (context.phase === 'static_only' ? 'static_only' : 'analysis') },
   };
 }

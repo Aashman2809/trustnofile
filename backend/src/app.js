@@ -45,7 +45,7 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
   const duplicateService = createDuplicateService({ fileRepo, analysisRepo });
   const deletionService = createDeletionService({ fileRepo, analysisRepo });
   const analysisController = makeAnalysisController({ orchestrator, analysisRepo, persistence });
-  const reportController = makeReportController({ load: analysisController.load });
+  const reportController = makeReportController({ load: analysisController.load, integrations });
 
   const app = express();
   app.disable('x-powered-by');

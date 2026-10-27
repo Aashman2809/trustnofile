@@ -8,5 +8,6 @@ export function createAnalysisRouter({ analysisController: a, reportController: 
   router.get('/:id/evidence', a.evidence);
   router.get('/:id/report', r.json);
   router.get('/:id/report.json', r.download);
+  router.post('/:id/chat', r.chat);
   return router;
 }

@@ -48,7 +48,7 @@ const llmWith = (fn) => ({ getStatus:() => ({ status: 'configured' }), analyzeEv
 const run = async (integrations) => { const f = await addFile(), { orch, jobs } = setup(integrations); const r = await orch.start(f.id); await jobs.onIdle(); return analysisRepo.getById(r.analysis.id); };
 
 test('disabled adapters report honestly and never throw',/* Runs the test case: disabled adapters report honestly and never throw. */ async () => {
-  const i = createIntegrations();
+  const i = createIntegrations({}, { provider: 'disabled' });
   assert.equal(i.llm.getStatus().status, 'not_configured'); assert.equal((await i.sandbox.getStatus()).status, 'unavailable');
   assert.equal(i.database.getStatus().status, 'not_configured'); assert.equal(i.database.getStatus().active, 'local_json_development_store');
   const r = await i.llm.analyzeEvidence({}); assert.equal(r.reasoning, null); assert.deepEqual(r.keyConcerns, []);
@@ -68,7 +68,7 @@ test('LLM output validation rejects malformed output and strips unknown fields',
   assert.equal(v.ok, true); assert.equal(v.value.evil, undefined);
 });
 test('analysis with default (disabled) integrations reports LLM not configured',/* Runs the test case: analysis with default (disabled) integrations reports LLM not configured. */ async () => {
-  const a = await run(createIntegrations());
+  const a = await run(createIntegrations({}, { provider: 'disabled' }));
   assert.equal(a.status, 'COMPLETED'); assert.equal(a.report.ai.status, 'not_configured'); assert.equal(a.report.ai.message, 'LLM integration not configured.');
 });
 test('unavailable provider reports AI error while deterministic analysis still completes',/* Runs the test case: unavailable provider reports AI error while deterministic analysis still completes. */ async () => {

@@ -94,8 +94,9 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
 
       await step('AI_DECISION', null, { assessment });
       let ai = { status: 'not_configured', message: 'LLM integration not configured.', riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [] };
+      let llmStatus = null;
       try {
-        const llmStatus = await integrations?.llm?.getStatus?.();
+        llmStatus = await integrations?.llm?.getStatus?.();
         if (llmStatus?.status === 'configured') {
           const raw = await integrations.llm.analyzeEvidence(minimizeEvidence({
             fileMetadata: { size: file.size, format: file.detected?.format, mime: file.detected?.mime, sha256: file.sha256 },
@@ -136,6 +137,24 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
                 finalAssessment = assessRisk({ findings: [...evidence.findings, ...ev], modules: evidence.modules, file });
                 finalAssessment.limitations = finalAssessment.limitations.filter(/* Keeps items that match the condition. */ (x) => !x.startsWith('Behavioral (sandbox) analysis was not performed'));
                 finalAssessment.evidenceSufficiency = 'combined_static_and_behavioral';
+
+                // Post-behavioral AI synthesis if LLM is active
+                if (llmStatus?.status === 'configured') {
+                  try {
+                    const postRaw = await integrations.llm.analyzeEvidence(minimizeEvidence({
+                      fileMetadata: { size: file.size, format: file.detected?.format, mime: file.detected?.mime, sha256: file.sha256 },
+                      staticEvidence: evidence,
+                      preliminaryAssessment: finalAssessment,
+                      context: { phase: 'post_sandbox', behavioralEvidence: { status: raw.status, findings: ev } },
+                    }));
+                    const postV = validateLlmResult(postRaw);
+                    if (postV.ok && postRaw.status === 'completed') {
+                      ai = { ...postV.value, message: null };
+                    }
+                  } catch (ePost) {
+                    log('warn', 'llm_post_behavioral_failed', { analysisId: id, error: String(ePost.message).slice(0, 100) });
+                  }
+                }
               }
             }
           } else behavioral = { status: 'unavailable', message: 'Sandbox integration is unavailable; no file was executed.' };

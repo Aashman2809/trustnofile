@@ -26,9 +26,12 @@ const fileOf = (format, extra = {}) => ({ detected: { format }, extension: forma
 function makeZip(entries) {
   const locals = [], cds = []; let off = 0;
   for (const e of entries) {
-    const name = Buffer.from(e.name), data = Buffer.from(e.data ?? ''), crc = zlib.crc32(data);
-    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(name.length, 26);
-    const cd = Buffer.alloc(46); cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6); cd.writeUInt32LE(crc, 16); cd.writeUInt32LE(e.compressed ?? data.length, 20); cd.writeUInt32LE(e.declared ?? data.length, 24); cd.writeUInt16LE(name.length, 28); cd.writeUInt32LE(off, 42);
+    const name = Buffer.from(e.name);
+    const compLen = e.compressed ?? (e.data ? Buffer.byteLength(e.data) : 0);
+    const data = e.data !== undefined ? (typeof e.data === 'string' ? Buffer.from(e.data) : e.data) : Buffer.alloc(compLen);
+    const crc = zlib.crc32(data);
+    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(e.declared ?? data.length, 22); lh.writeUInt16LE(name.length, 26);
+    const cd = Buffer.alloc(46); cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6); cd.writeUInt32LE(crc, 16); cd.writeUInt32LE(data.length, 20); cd.writeUInt32LE(e.declared ?? data.length, 24); cd.writeUInt16LE(name.length, 28); cd.writeUInt32LE(off, 42);
     locals.push(lh, name, data); cds.push(cd, name); off += 30 + name.length + data.length;
   }
   const cdBuf = Buffer.concat(cds), eocd = Buffer.alloc(22);
