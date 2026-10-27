@@ -4,7 +4,7 @@ async function request(path, options) {
   if (!res.ok) throw new Error(body?.error?.message || `Request failed (${res.status})`);
   return body;
 }
-// XHR (not fetch) so we can report upload progress.
+
 function uploadFile(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -13,7 +13,7 @@ function uploadFile(file, onProgress) {
     xhr.onerror = () => reject(new Error('Network error: is the backend running?'));
     xhr.onload = () => {
       let body = null;
-      try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+      try { body = JSON.parse(xhr.responseText); } catch {   }
       xhr.status >= 200 && xhr.status < 300 ? resolve({ ...body.file, priorAnalysis: body.priorAnalysis ?? null }) : reject(new Error(body?.error?.message || `Upload failed (${xhr.status})`));
     };
     const fd = new FormData();

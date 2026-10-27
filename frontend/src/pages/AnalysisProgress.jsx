@@ -26,7 +26,6 @@ export default function AnalysisProgress() {
   const [pollKey, setPollKey] = useState(0);
   const [retrying, setRetrying] = useState(false);
 
-  // Polls the real backend status. Stops on terminal state, unmount, repeated errors, or timeout.
   useEffect(() => {
     let cancelled = false, timer, failures = 0;
     const started = Date.now();

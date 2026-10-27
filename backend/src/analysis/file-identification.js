@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
-import { fileTypeFromFile } from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 
+// Reads head.
 async function readHead(filePath, n = 65536) {
   const fh = await fs.open(filePath, 'r');
   try {
@@ -10,28 +11,52 @@ async function readHead(filePath, n = 65536) {
   } finally { await fh.close(); }
 }
 
+// Checks whether the input contains readable text.
 function looksLikeText(head) {
   if (head.includes(0)) return false;
   try { new TextDecoder('utf-8', { fatal: true }).decode(head); return true; } catch { return false; }
 }
 
-// Signature-based identification. Never trusts the browser MIME type or extension.
+// Checks whether text contains HTML markup.
+function looksLikeHtml(head) {
+  if (head.includes(0)) return false;
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(head).replace(/^\uFEFF/, ''); } catch { return false; }
+
+  return /^\s*(?:<\?xml\b[^?]*\?>\s*)?(?:<!--[\s\S]{0,4096}?-->\s*)*(?:<!doctype\s+html\b|<html(?:\s|>)|<(?:head|body|script|style|iframe|div|span|main|section|article|header|footer|nav|form|input|button|img|a|p|ul|ol|li|table|thead|tbody|tr|td|th|h[1-6]|meta|link|title|svg)(?:\s|>|\/))/i.test(text);
+}
+
+// Identifies a supported text format from its content.
+function identifyTextMarkup(head) {
+  if (head.includes(0)) return null;
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(head).replace(/^\uFEFF/, '').trimStart(); } catch { return null; }
+  if (/^(?:<\?xml\b[^?]*\?>\s*)?(?:<!--[\s\S]{0,4096}?-->\s*)*<svg(?:\s|>)/i.test(text)) return { format: 'svg', mime: 'image/svg+xml', signature: false, signatureName: 'SVG markup heuristic' };
+  if (/^<\?xml\b|^<!doctype\s+(?!html\b)[a-z][\w:.-]*/i.test(text)) return { format: 'xml', mime: 'application/xml', signature: false, signatureName: 'XML markup heuristic' };
+  return null;
+}
+
+// Identifies a file from its content.
 export async function identifyFile(filePath) {
-  const ft = await fileTypeFromFile(filePath);
+  const head = await readHead(filePath, 4100);
+  const ft = await fileTypeFromBuffer(head);
+  if (ft?.ext === 'xml') return identifyTextMarkup(head) || { format: 'xml', mime: 'application/xml', signature: false, signatureName: 'XML markup heuristic' };
   if (ft) {
-    // OpenXML files are ZIP containers. Refine their type from bounded central-directory
-    // names; never extract or decompress untrusted entries during identification.
+
     if (ft.ext === 'zip') {
       const office = await identifyOpenXml(filePath);
       if (office) return { ...office, signature: true, signatureName: 'ZIP/OpenXML container' };
     }
     return { format: ft.ext, mime: ft.mime, signature: true, signatureName: ft.ext };
   }
-  const head = await readHead(filePath);
+  if (looksLikeHtml(head)) return { format: 'html', mime: 'text/html', signature: false, signatureName: 'HTML markup heuristic' };
+  const markup = identifyTextMarkup(head);
+  if (markup) return markup;
   if (looksLikeText(head)) return { format: 'text', mime: 'text/plain', signature: false, signatureName: 'UTF-8 text' };
   return { format: 'unknown', mime: 'application/octet-stream', signature: false };
 }
 
+// Identifies the OpenXML document type.
 async function identifyOpenXml(filePath) {
   const fh = await fs.open(filePath, 'r');
   try {

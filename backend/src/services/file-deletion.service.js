@@ -3,9 +3,11 @@ import path from 'node:path';
 import { AppError } from '../middleware/error.middleware.js';
 import { config } from '../config/env.js';
 
-// Default: delete the stored bytes, keep the records (flagged "file deleted"). purge: remove records too.
+// Creates the file deletion service.
 export function createDeletionService({ fileRepo, analysisRepo, storageDir = config.storageDir }) {
   return {
+
+    // Removes a record or its stored file.
     async remove(id, { purge = false } = {}) {
       const file = await fileRepo.getById(id);
       if (!file) throw new AppError(404, 'FILE_NOT_FOUND', 'No file with that ID.');

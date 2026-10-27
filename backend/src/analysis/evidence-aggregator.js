@@ -16,6 +16,7 @@ export const DEFAULT_MODULES = [
   { name: 'signature', run: signatureModule }, { name: 'yara', run: yaraModule },
 ];
 
+// Runs an analysis module and captures its result.
 async function runModule(mod, ctx, timeoutMs) {
   const start = Date.now();
   let timer;
@@ -23,7 +24,7 @@ async function runModule(mod, ctx, timeoutMs) {
   try {
     const result = await Promise.race([
       mod.run(ctx),
-      new Promise((_, rej) => { timer = setTimeout(() => rej(Object.assign(new Error('Module timed out'), { timeout: true })), timeoutMs); }),
+      new Promise(/* Handles the callback for this operation. */ (_, rej) => { timer = setTimeout(/* Runs the scheduled callback. */ () => rej(Object.assign(new Error('Module timed out'), { timeout: true })), timeoutMs); }),
     ]);
     const ev = { ...base, errors: [], ...result, module: mod.name, durationMs: Date.now() - start };
     const problems = validateModuleEvidence(ev);
@@ -34,13 +35,15 @@ async function runModule(mod, ctx, timeoutMs) {
   } finally { clearTimeout(timer); }
 }
 
-// One module failing never discards the others' evidence. Files are only read, never executed.
+// Runs the static file analysis modules.
 export async function runStaticAnalysis(ctx, { modules = DEFAULT_MODULES, timeoutMs = config.moduleTimeoutMs } = {}) {
-  const results = await Promise.all(modules.map((m) => runModule(m, ctx, timeoutMs)));
-  const count = (s) => results.filter((r) => r.status === s).length;
+  const results = await Promise.all(modules.map(/* Transforms each item in the collection. */ (m) => runModule(m, ctx, timeoutMs)));
+
+  // Counts matching records.
+  const count = (s) => results.filter(/* Keeps items that match the condition. */ (r) => r.status === s).length;
   return {
     modules: results,
-    findings: results.flatMap((r) => r.findings.map((f) => ({ ...f, module: r.module }))),
+    findings: results.flatMap(/* Handles the callback for this operation. */ (r) => r.findings.map(/* Transforms each item in the collection. */ (f) => ({ ...f, module: r.module }))),
     summary: { completed: count('completed'), skipped: count('skipped'), unavailable: count('unavailable'), failed: count('failed'), timeout: count('timeout') },
   };
 }

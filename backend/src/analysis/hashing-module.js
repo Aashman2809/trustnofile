@@ -1,5 +1,6 @@
 import { hashFile } from './hashing.js';
-// Re-hashes from disk and compares with the upload-time record (integrity check).
+
+// Calculates file hashes for analysis.
 export async function hashingModule({ filePath, file }) {
   const h = await hashFile(filePath);
   const findings = [];

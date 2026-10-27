@@ -9,14 +9,21 @@ import { identifyFile } from '../../analysis/file-identification.js';
 const exec = promisify(execFile);
 const image = process.env.SANDBOX_IMAGE || '';
 const docker = process.env.SANDBOX_DOCKER_PATH || 'docker';
+
+// Handles bounded operation.
 const bounded = (n, min, max, fallback) => Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 
+// Creates the Docker sandbox adapter.
 export function createDockerSandbox({ fetchExec = exec, image: configuredImage = image, dockerPath = docker } = {}) {
   const safeImage = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/.test(configuredImage);
+
+  // Handles named.
   const cleanupNamed = async (name, timeout = 3000) => {
-    try { await fetchExec(dockerPath, ['rm', '-f', name], { timeout, windowsHide: true, maxBuffer: 64 * 1024 }); } catch { /* already gone */ }
+    try { await fetchExec(dockerPath, ['rm', '-f', name], { timeout, windowsHide: true, maxBuffer: 64 * 1024 }); } catch {   }
   };
   return {
+
+    // Returns the current service status.
     async getStatus() {
       if (!safeImage) return { status: 'unavailable', reason: 'sandbox image is not configured' };
       try {
@@ -25,6 +32,8 @@ export function createDockerSandbox({ fetchExec = exec, image: configuredImage =
         return { status: 'available', engine: 'docker', executionScope: 'isolated_linux_elf' };
       } catch { return { status: 'unavailable', reason: 'sandbox engine or configured image is unavailable' }; }
     },
+
+    // Runs the requested analysis operation.
     async run({ fileRef, timeoutMs = 30000 }) {
       if (!safeImage || typeof fileRef !== 'string') return { status: 'unavailable', message: 'Sandbox engine or image is unavailable; no file was executed.', behavioralEvidence: null, logs: [], artifacts: [] };
       const detected = await identifyFile(fileRef);
@@ -52,7 +61,7 @@ export function createDockerSandbox({ fetchExec = exec, image: configuredImage =
           if (!timedOut) return { status: 'failed', message: 'The isolated sandbox runner failed.', behavioralEvidence: null, logs: [stderr.slice(0, 2000)], artifacts: [] };
         } finally { await cleanupNamed(name); }
         const result = parseRunnerResult(stdout);
-        const logs = [result.stdout, result.stderr, stderr].filter(Boolean).map((x) => String(x).slice(0, 2000));
+        const logs = [result.stdout, result.stderr, stderr].filter(Boolean).map(/* Transforms each item in the collection. */ (x) => String(x).slice(0, 2000));
         if (timedOut) return { status: 'timeout', message: 'Sandbox execution reached its time limit and the container was stopped.', behavioralEvidence: result, logs, artifacts: [] };
         return { status: 'completed', message: 'Linux ELF was run in a disposable, network-disabled container.', behavioralEvidence: result, logs, artifacts: [] };
       } finally {
@@ -63,11 +72,12 @@ export function createDockerSandbox({ fetchExec = exec, image: configuredImage =
   };
 }
 
+// Parses the sandbox runner result.
 function parseRunnerResult(stdout) {
   try {
     const obj = JSON.parse(String(stdout).slice(0, 128 * 1024));
     const allowed = new Set(['process_created', 'network_attempt', 'file_written', 'persistence_attempt', 'execution_error']);
-    return { events: (Array.isArray(obj.events) ? obj.events : []).slice(0, 100).flatMap((e) => allowed.has(e?.type) ? [{ type: e.type, detail: String(e.detail || '').slice(0, 300) }] : []), exitCode: Number.isInteger(obj.exitCode) ? obj.exitCode : null,
+    return { events: (Array.isArray(obj.events) ? obj.events : []).slice(0, 100).flatMap(/* Handles the callback for this operation. */ (e) => allowed.has(e?.type) ? [{ type: e.type, detail: String(e.detail || '').slice(0, 300) }] : []), exitCode: Number.isInteger(obj.exitCode) ? obj.exitCode : null,
       stdout: typeof obj.stdout === 'string' ? obj.stdout.slice(0, 2000) : '', stderr: typeof obj.stderr === 'string' ? obj.stderr.slice(0, 2000) : '' };
   } catch { return { events: [], exitCode: null, outputMalformed: true }; }
 }

@@ -2,7 +2,10 @@ import { AppError } from '../middleware/error.middleware.js';
 import { toPublic } from '../services/upload.service.js';
 import { isUuid } from '../utils/ids.js';
 
+// Creates handlers for file API requests.
 export const filesController = (fileRepo, deletionService) => ({
+
+  // Lists matching stored records.
   list: async (req, res, next) => {
     try {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -12,6 +15,8 @@ export const filesController = (fileRepo, deletionService) => ({
       res.json({ items: items.map(toPublic), total, page, pageSize });
     } catch (e) { next(e); }
   },
+
+  // Gets a stored record by ID.
   get: async (req, res, next) => {
     try {
       if (!isUuid(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');
@@ -20,6 +25,8 @@ export const filesController = (fileRepo, deletionService) => ({
       res.json({ file: toPublic(rec) });
     } catch (e) { next(e); }
   },
+
+  // Removes a record or its stored file.
   remove: async (req, res, next) => {
     try {
       if (!isUuid(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');

@@ -30,7 +30,7 @@ export default function Analyze() {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   };
-  // Analysis is never started automatically: the user presses the button below.
+
   const start = async () => {
     setStarting(true); setError('');
     try { const { analysis } = await api.startAnalysis(result.id); navigate(`/analysis/${analysis.id}`); }

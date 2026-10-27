@@ -44,13 +44,33 @@ export default function Report() {
           <Field label="Original filename">{file.originalName}</Field>
           <Field label="File ID (storage identifier)" mono>{file.id}</Field>
           <Field label="Size">{formatBytes(file.size)}</Field>
+          <Field label="Detected format">{file.detected.format}</Field>
+          <Field label="Detected category">{file.detected.category}</Field>
           <Field label="Detected MIME type">{file.detected.mime}</Field>
+          <Field label="Identification basis">{file.detected.signature || file.detected.identification || 'UTF-8 text heuristic'}</Field>
           <Field label="Extension">{file.extension || '(none)'}{file.typeMismatch && <span className="ml-2 text-xs text-amber-800">does not match content</span>}</Field>
+          <Field label="Browser-declared MIME type">{file.declaredMime || '(not provided)'}</Field>
           <Field label="Analysis ID" mono>{report.analysis.id}</Field>
           <Field label="SHA-256" mono>{file.sha256}</Field>
+          <Field label="MD5 (reference only)" mono>{file.md5 || '—'}</Field>
           <Field label="Uploaded">{formatDate(file.uploadedAt)}</Field>
           <Field label="Analyzed">{formatDate(report.analysis.finishedAt)}</Field>
         </dl>
+        {file.details && Object.keys(file.details).length > 0 && (
+          <details className="mt-4 border-t border-slate-100 pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-blue-700">Additional detected file details</summary>
+            <p className="mt-2 text-xs text-slate-500">These are bounded facts read from file headers or a limited content sample. They are not a safety verdict.</p>
+            <dl className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(file.details).filter(([key]) => key !== 'note').map(([key, value]) => (
+                <Field key={key} label={key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}>
+                  {value && typeof value === 'object'
+                    ? <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-50 p-2 text-xs">{JSON.stringify(value, null, 2)}</pre>
+                    : String(value ?? '—')}
+                </Field>
+              ))}
+            </dl>
+          </details>
+        )}
       </Section>
 
       <Section id="sec-assessment" icon={ShieldAlert} title="Overall assessment">
@@ -97,7 +117,7 @@ export default function Report() {
             <tbody>{sa.modules.map((m) => (
               <tr key={m.module} className="border-b border-slate-100 align-top">
                 <td className="py-2 pr-3 font-medium">{m.module}</td><td className="pr-3"><ModuleStatusBadge status={m.status} /></td>
-                <td className="pr-3 text-xs text-slate-600">{m.reason || m.errors[0] || ''}</td><td className="text-xs text-slate-500">{m.durationMs} ms</td>
+                <td className="pr-3 text-xs text-slate-600">{m.reason || m.errors[0] || ''}{m.module === 'yara' && <div className="mt-1 text-slate-500">{m.data?.sourceSet ? `${m.data.sourceSet.source} ${m.data.sourceSet.release} · ${m.data.sourceSet.package}` : 'No versioned rule source reported'} · {m.data?.scanComplete ? 'complete scan' : 'scan incomplete or not performed'}</div>}</td><td className="text-xs text-slate-500">{m.durationMs} ms</td>
               </tr>))}</tbody>
           </table>
         </div>

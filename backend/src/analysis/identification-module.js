@@ -1,3 +1,4 @@
+// Identifies the uploaded file type.
 export async function identificationModule({ file }) {
   const findings = [];
   if (file.typeMismatch) {

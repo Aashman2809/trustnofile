@@ -1,4 +1,6 @@
 const LEVELS = ['low', 'moderate', 'high', 'very_high', 'insufficient_evidence'];
+
+// Handles token operation.
 const token = (value, pattern, fallback) => typeof value === 'string' && pattern.test(value) ? value : fallback;
 const SEVERITY = new Set(['info', 'low', 'medium', 'high']);
 const MODULE_STATUS = new Set(['completed', 'skipped', 'unavailable', 'failed', 'timeout']);
@@ -10,11 +12,10 @@ const CODES = new Set([
   'ARCHIVE_COMPRESSION_ANOMALY', 'ARCHIVE_DOUBLE_EXTENSION', 'ARCHIVE_EXECUTABLE_CONTENT', 'ARCHIVE_NESTED',
   'ARCHIVE_ENCRYPTED_ENTRIES', 'OFFICE_MACROS_PRESENT', 'ARCHIVE_ENTRY_LIMIT',
   ...['URL', 'IPV4', 'POWERSHELL_ENCODED', 'CMD_EXEC', 'DOWNLOAD_AND_EXECUTE',
-    'PROCESS_INJECTION_APIS', 'PERSISTENCE', 'SCRIPT_KEYWORDS', 'BASE64_BLOB'].map((code) => `STR_${code}`),
+    'PROCESS_INJECTION_APIS', 'PERSISTENCE', 'SCRIPT_KEYWORDS', 'BASE64_BLOB'].map(/* Transforms each item in the collection. */ (code) => `STR_${code}`),
 ]);
 
-// Allowlist a small, fixed evidence projection. File-derived strings, names, paths,
-// parser messages, and raw extracted content never cross the provider boundary.
+// Reduces evidence to the allowed language model fields.
 export function minimizeEvidence({ fileMetadata = {}, staticEvidence = {}, preliminaryAssessment = {}, context = {} } = {}) {
   return {
     fileMetadata: {
@@ -23,10 +24,10 @@ export function minimizeEvidence({ fileMetadata = {}, staticEvidence = {}, preli
       mime: token(fileMetadata.mime, /^[A-Za-z0-9.+-]{1,64}\/[A-Za-z0-9.+-]{1,64}$/, null),
     },
     staticEvidence: {
-      modules: (Array.isArray(staticEvidence.modules) ? staticEvidence.modules : []).slice(0, 32).map((m) => ({
+      modules: (Array.isArray(staticEvidence.modules) ? staticEvidence.modules : []).slice(0, 32).map(/* Transforms each item in the collection. */ (m) => ({
         module: MODULES.has(m.module) ? m.module : 'unknown', status: MODULE_STATUS.has(m.status) ? m.status : 'unknown',
       })),
-      findings: (Array.isArray(staticEvidence.findings) ? staticEvidence.findings : []).slice(0, 100).map((f) => ({
+      findings: (Array.isArray(staticEvidence.findings) ? staticEvidence.findings : []).slice(0, 100).map(/* Transforms each item in the collection. */ (f) => ({
         code: CODES.has(f.code) ? f.code : 'UNKNOWN', severity: SEVERITY.has(f.severity) ? f.severity : 'info',
         kind: ['observed', 'heuristic'].includes(f.kind) ? f.kind : 'heuristic', module: MODULES.has(f.module) ? f.module : 'unknown',
       })),
@@ -36,7 +37,7 @@ export function minimizeEvidence({ fileMetadata = {}, staticEvidence = {}, preli
       riskLevel: LEVELS.includes(preliminaryAssessment.riskLevel) ? preliminaryAssessment.riskLevel : 'insufficient_evidence',
       confidence: ['low', 'limited', 'medium', 'high'].includes(preliminaryAssessment.confidence) ? preliminaryAssessment.confidence : 'low',
       evidenceSufficiency: ['insufficient', 'partial', 'combined_static_and_behavioral'].includes(preliminaryAssessment.evidenceSufficiency) ? preliminaryAssessment.evidenceSufficiency : 'insufficient',
-      reasons: (Array.isArray(preliminaryAssessment.reasons) ? preliminaryAssessment.reasons : []).slice(0, 50).map((r) => ({ code: CODES.has(r.code) ? r.code : 'UNKNOWN' })),
+      reasons: (Array.isArray(preliminaryAssessment.reasons) ? preliminaryAssessment.reasons : []).slice(0, 50).map(/* Transforms each item in the collection. */ (r) => ({ code: CODES.has(r.code) ? r.code : 'UNKNOWN' })),
       sandboxRecommended: preliminaryAssessment.sandboxRecommended === true,
     },
     context: { phase: context.phase === 'static_only' ? 'static_only' : 'analysis' },
