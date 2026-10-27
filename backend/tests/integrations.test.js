@@ -301,10 +301,10 @@ test('PostgreSQL repository contracts insert, retrieve and update records; failu
     }
     if (sql.startsWith('SELECT * FROM files')) return { rows: frow ? [frow] : [] };
     if (sql.startsWith('UPDATE files')) { frow.original_name=v[2]; frow.file_deleted=v[13]; return { rows:[frow] }; }
-    if (sql.startsWith('INSERT INTO analyses')) { arow = { id:v[0],file_id:v[1],status:v[2],stages:v[3],risk_score:v[4],risk_level:v[5],confidence:v[6],assessment:v[7],evidence:v[8],report:v[9],error_code:v[10],error_message:v[11],started_at:v[12],finished_at:v[13] }; return { rows:[{id:v[0]}] }; }
+    if (sql.startsWith('INSERT INTO analyses')) { arow = { id:v[0],file_id:v[1],status:v[2],stages:JSON.parse(v[3]),risk_score:v[4],risk_level:v[5],confidence:v[6],assessment:v[7] && JSON.parse(v[7]),evidence:v[8] && JSON.parse(v[8]),report:v[9] && JSON.parse(v[9]),error_code:v[10],error_message:v[11],started_at:v[12],finished_at:v[13] }; return { rows:[{id:v[0]}] }; }
     if (sql.startsWith('SELECT a.*, f.original_name')) return { rows: arow && frow ? [{ ...arow, original_name:frow.original_name,size_bytes:frow.size_bytes,extension:frow.extension,declared_mime:frow.declared_mime,detected_format:frow.detected_format,detected_mime:frow.detected_mime,detected_category:frow.detected_category,detected_signature:frow.detected_signature,type_mismatch:frow.type_mismatch,sha256:frow.sha256,md5:frow.md5,file_deleted:frow.file_deleted,uploaded_at:frow.uploaded_at }] : [] };
     if (sql.startsWith('SELECT * FROM analyses')) return { rows: arow ? [arow] : [] };
-    if (sql.startsWith('UPDATE analyses')) { arow.status=v[1]; arow.stages=v[2]; arow.report=v[8]; arow.finished_at=v[11]; return { rows:[] }; }
+    if (sql.startsWith('UPDATE analyses')) { arow.status=v[1]; arow.stages=JSON.parse(v[2]); arow.assessment=v[6] && JSON.parse(v[6]); arow.evidence=v[7] && JSON.parse(v[7]); arow.report=v[8] && JSON.parse(v[8]); arow.finished_at=v[11]; return { rows:[] }; }
     return { rows:[] };
   } };
   const db = createPostgresAdapter({ url: 'postgres://unit.invalid/db', PoolClass: fakePool });
@@ -315,11 +315,28 @@ test('PostgreSQL repository contracts insert, retrieve and update records; failu
   assert.equal((await fileRepo.getById(id)).originalName, hostileName);
   await fileRepo.update(id, { originalName: 'updated.txt' });
   assert.equal((await fileRepo.getById(id)).originalName, 'updated.txt');
-  const a = { id: randomUUID(), fileId:id, status:'UPLOADED', startedAt:new Date().toISOString(), finishedAt:null, stages:[], error:null, evidence:null, assessment:null, report:null };
+  const stages = [{ name:'upload', status:'completed', startedAt:new Date().toISOString(), finishedAt:new Date().toISOString(), note:null }];
+  const assessment = { riskScore:1, riskLevel:'low', confidence:'high' };
+  const evidence = { modules:[], findings:[], summary:{} };
+  const report = { schemaVersion:'1.0', generatedAt:new Date().toISOString() };
+  const a = { id: randomUUID(), fileId:id, status:'UPLOADED', startedAt:new Date().toISOString(), finishedAt:null, stages, error:null, evidence, assessment, report };
   await analysisRepo.create(a);
+  const analysisInsert = queries.find((q) => q.sql.startsWith('INSERT INTO analyses'));
+  assert.deepEqual(JSON.parse(analysisInsert.values[3]), stages);
+  assert.deepEqual(JSON.parse(analysisInsert.values[7]), assessment);
+  assert.deepEqual(JSON.parse(analysisInsert.values[8]), evidence);
+  assert.deepEqual(JSON.parse(analysisInsert.values[9]), report);
   assert.equal((await analysisRepo.getById(a.id)).file.originalName, 'updated.txt');
-  await analysisRepo.update(a.id, { status:'COMPLETED', finishedAt:new Date().toISOString(), report:{ schemaVersion:'1.0' } });
-  assert.equal((await analysisRepo.getById(a.id)).report.schemaVersion, '1.0');
+  const updatedAssessment = { ...assessment, riskScore:2 };
+  const updatedEvidence = { ...evidence, summary:{ findings:0 } };
+  const updatedReport = { ...report, schemaVersion:'1.1' };
+  await analysisRepo.update(a.id, { status:'COMPLETED', finishedAt:new Date().toISOString(), assessment:updatedAssessment, evidence:updatedEvidence, report:updatedReport });
+  const analysisUpdate = queries.find((q) => q.sql.startsWith('UPDATE analyses'));
+  assert.deepEqual(JSON.parse(analysisUpdate.values[2]), stages);
+  assert.deepEqual(JSON.parse(analysisUpdate.values[6]), updatedAssessment);
+  assert.deepEqual(JSON.parse(analysisUpdate.values[7]), updatedEvidence);
+  assert.deepEqual(JSON.parse(analysisUpdate.values[8]), updatedReport);
+  assert.equal((await analysisRepo.getById(a.id)).report.schemaVersion, '1.1');
   const insert = queries.find(/* Checks whether the item matches the lookup criteria. */ (q) => q.sql.startsWith('INSERT INTO files'));
   assert.ok(insert.sql.includes('$1') && !insert.sql.includes('DROP TABLE'));
   assert.ok(insert.values.includes(hostileName));

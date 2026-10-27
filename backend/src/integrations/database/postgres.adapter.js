@@ -10,6 +10,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`
 
 // Gets params.
 const fileParams = (f) => [f.id,f.storedName,f.originalName,f.size,f.extension,f.declaredMime,f.detected?.format,f.detected?.mime,f.detected?.category,f.detected?.signature ?? null,!!f.typeMismatch,f.sha256,f.md5,!!f.fileDeleted,f.deletedAt ?? null,f.status,f.uploadedAt];
+const jsonParam = (value) => value == null ? null : JSON.stringify(value);
 
 // Creates the PostgreSQL database adapter.
 export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClass = null } = {}) {
@@ -62,13 +63,13 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
     const analysisRepo = {
 
       // Creates a repository record.
-      async create(a) { const { rows }=await pool.query('INSERT INTO analyses(id,file_id,status,stages,risk_score,risk_level,confidence,assessment,evidence,report,error_code,error_message,started_at,finished_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',[a.id,a.fileId,a.status,a.stages,a.assessment?.riskScore??null,a.assessment?.riskLevel??null,a.assessment?.confidence??null,a.assessment??null,a.evidence??null,a.report??null,a.error?.code??null,a.error?.message??null,a.startedAt,a.finishedAt]); return (await this.getById(rows[0].id)); },
+      async create(a) { const { rows }=await pool.query('INSERT INTO analyses(id,file_id,status,stages,risk_score,risk_level,confidence,assessment,evidence,report,error_code,error_message,started_at,finished_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',[a.id,a.fileId,a.status,jsonParam(a.stages),a.assessment?.riskScore??null,a.assessment?.riskLevel??null,a.assessment?.confidence??null,jsonParam(a.assessment),jsonParam(a.evidence),jsonParam(a.report),a.error?.code??null,a.error?.message??null,a.startedAt,a.finishedAt]); return (await this.getById(rows[0].id)); },
 
       // Finds a record by its ID.
       async getById(id) { const { rows }=await pool.query(`${selectAnalysis} WHERE a.id=$1`,[id]); return mapAnalysis(rows[0]); },
 
       // Updates a repository record.
-      async update(id,p) { const old=await pool.query('SELECT * FROM analyses WHERE id=$1',[id]); if(!old.rows[0]) throw new Error('Analysis not found'); const r={...old.rows[0],...p}; await pool.query('UPDATE analyses SET status=$2,stages=$3,risk_score=$4,risk_level=$5,confidence=$6,assessment=$7,evidence=$8,report=$9,error_code=$10,error_message=$11,finished_at=$12 WHERE id=$1',[id,r.status,r.stages,r.assessment?.riskScore??null,r.assessment?.riskLevel??null,r.assessment?.confidence??null,r.assessment??null,r.evidence??null,r.report??null,r.error?.code??null,r.error?.message??null,r.finishedAt??null]); return this.getById(id); },
+      async update(id,p) { const old=await pool.query('SELECT * FROM analyses WHERE id=$1',[id]); if(!old.rows[0]) throw new Error('Analysis not found'); const r={...old.rows[0],...p}; await pool.query('UPDATE analyses SET status=$2,stages=$3,risk_score=$4,risk_level=$5,confidence=$6,assessment=$7,evidence=$8,report=$9,error_code=$10,error_message=$11,finished_at=$12 WHERE id=$1',[id,r.status,jsonParam(r.stages),r.assessment?.riskScore??null,r.assessment?.riskLevel??null,r.assessment?.confidence??null,jsonParam(r.assessment),jsonParam(r.evidence),jsonParam(r.report),r.error?.code??null,r.error?.message??null,r.finishedAt??null]); return this.getById(id); },
 
       // Lists matching stored records.
       async list({page=1,pageSize=20,status,risk,search='',fileId,sort='desc'}={}) { const order=sort==='asc'?'ASC':'DESC', q=`%${search}%`; const vals=[status??null,risk??null,q,fileId??null,pageSize,(page-1)*pageSize]; const where=`($1::text IS NULL OR a.status=$1) AND ($2::text IS NULL OR a.risk_level=$2) AND ($4::uuid IS NULL OR a.file_id=$4) AND ($3='%%' OR f.original_name ILIKE $3 OR a.id::text ILIKE $3 OR a.file_id::text ILIKE $3)`; const {rows}=await pool.query(`${selectAnalysis} WHERE ${where} ORDER BY a.started_at ${order} LIMIT $5 OFFSET $6`,vals); const count=await pool.query(`SELECT count(*)::int AS total FROM analyses a JOIN files f ON f.id=a.file_id WHERE ${where}`,vals.slice(0,4)); return {items:rows.map(mapAnalysis),total:count.rows[0].total}; },
