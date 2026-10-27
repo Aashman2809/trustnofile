@@ -23,7 +23,7 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
       try {
         let Pool = PoolClass;
         if (!Pool) ({ Pool } = await import('pg'));
-        pool = new Pool({ connectionString: url, connectionTimeoutMillis: 3000, idleTimeoutMillis: 30000, max: 10, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined });
+        pool = new Pool({ connectionString: url, connectionTimeoutMillis: 3000, idleTimeoutMillis: 30000, max: 10, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
         pool.on('error',/* Handles the registered event. */ () => { state = { status: 'unavailable', active: 'postgresql' }; });
       } catch { state = { status: 'unavailable', active: 'local_json_development_store' }; return false; }
     }
