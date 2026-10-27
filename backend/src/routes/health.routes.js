@@ -3,10 +3,11 @@ import { config } from '../config/env.js';
 import { SUPPORTED_CATEGORIES } from '../config/limits.js';
 import { yaraAvailability } from '../analysis/yara-scanner.js';
 
-export function createHealthRouter({ integrations, persistence = 'local_json_development_store', databaseStatus = () => integrations.database.getStatus() }) {
+// Creates health router.
+export function createHealthRouter({ integrations, persistence = 'local_json_development_store', databaseStatus =/* Handles the callback for this operation. */ () => integrations.database.getStatus() }) {
   const r = Router();
-  r.get('/health', (_q, res) => res.json({ status: 'ok', version: config.version, time: new Date().toISOString() }));
-  r.get('/config/capabilities', async (_q, res) => {
+  r.get('/health',/* Handles the response for this request. */ (_q, res) => res.json({ status: 'ok', version: config.version, time: new Date().toISOString() }));
+  r.get('/config/capabilities',/* Handles the response for this request. */ async (_q, res) => {
     const yara = await yaraAvailability();
     const [database, llm, sandbox] = await Promise.allSettled([databaseStatus(), integrations.llm.getStatus(), integrations.sandbox.getStatus()]);
     res.json({

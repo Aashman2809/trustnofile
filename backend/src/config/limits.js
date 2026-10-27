@@ -1,5 +1,5 @@
-// Supported-format policy. Keyed by the format detected from the file SIGNATURE.
-// `family` lists extensions considered consistent with that format.
+
+
 export const FORMATS = {
   exe:  { category: 'Windows executable', family: ['exe', 'dll', 'sys', 'scr'] },
   elf:  { category: 'Linux executable', family: ['elf', 'so', 'bin', 'o', ''] },
@@ -15,5 +15,54 @@ export const FORMATS = {
   webp: { category: 'Image', family: ['webp'] },
   bmp:  { category: 'Image', family: ['bmp'] },
 };
-export const TEXT_EXTS = ['txt', 'log', 'md', 'csv', 'json'];
-export const SUPPORTED_CATEGORIES = [...new Set(Object.values(FORMATS).map((f) => f.category)), 'Plain text', 'JSON'];
+
+export const TEXT_FORMATS = {
+  html: { format: 'html', mime: 'text/html', category: 'HTML document' },
+  htm: { format: 'html', mime: 'text/html', category: 'HTML document' },
+  xhtml: { format: 'html', mime: 'application/xhtml+xml', category: 'HTML document' },
+  yaml: { format: 'yaml', mime: 'application/yaml', category: 'YAML document' },
+  yml: { format: 'yaml', mime: 'application/yaml', category: 'YAML document' },
+  xml: { format: 'xml', mime: 'application/xml', category: 'XML document' },
+  svg: { format: 'svg', mime: 'image/svg+xml', category: 'SVG image' },
+  toml: { format: 'toml', mime: 'application/toml', category: 'TOML configuration' },
+  ini: { format: 'ini', mime: 'text/plain', category: 'INI configuration' },
+  conf: { format: 'config', mime: 'text/plain', category: 'Configuration text' },
+  config: { format: 'config', mime: 'text/plain', category: 'Configuration text' },
+  env: { format: 'config', mime: 'text/plain', category: 'Environment configuration' },
+  properties: { format: 'config', mime: 'text/plain', category: 'Properties configuration' },
+  md: { format: 'markdown', mime: 'text/markdown', category: 'Markdown document' },
+  csv: { format: 'csv', mime: 'text/csv', category: 'CSV document' },
+  log: { format: 'log', mime: 'text/plain', category: 'Plain-text log' },
+  js: { format: 'javascript', mime: 'text/javascript', category: 'JavaScript source' },
+  mjs: { format: 'javascript', mime: 'text/javascript', category: 'JavaScript source' },
+  cjs: { format: 'javascript', mime: 'text/javascript', category: 'JavaScript source' },
+  jsx: { format: 'javascript', mime: 'text/javascript', category: 'JavaScript source' },
+  ts: { format: 'typescript', mime: 'text/typescript', category: 'TypeScript source' },
+  tsx: { format: 'typescript', mime: 'text/typescript', category: 'TypeScript source' },
+  css: { format: 'css', mime: 'text/css', category: 'Stylesheet' },
+  scss: { format: 'css', mime: 'text/css', category: 'Stylesheet' },
+  sass: { format: 'css', mime: 'text/css', category: 'Stylesheet' },
+  less: { format: 'css', mime: 'text/css', category: 'Stylesheet' },
+  sql: { format: 'sql', mime: 'text/x-sql', category: 'SQL source' },
+  sh: { format: 'shell', mime: 'text/x-shellscript', category: 'Shell script' },
+  bash: { format: 'shell', mime: 'text/x-shellscript', category: 'Shell script' },
+  zsh: { format: 'shell', mime: 'text/x-shellscript', category: 'Shell script' },
+  profile: { format: 'shell', mime: 'text/x-shellscript', category: 'Shell script' },
+  py: { format: 'python', mime: 'text/x-python', category: 'Python source' },
+  pyw: { format: 'python', mime: 'text/x-python', category: 'Python source' },
+  php: { format: 'php', mime: 'text/x-php', category: 'PHP source' },
+  rb: { format: 'ruby', mime: 'text/x-ruby', category: 'Ruby source' },
+  go: { format: 'go', mime: 'text/x-go', category: 'Go source' },
+  rs: { format: 'rust', mime: 'text/x-rust', category: 'Rust source' },
+  java: { format: 'java', mime: 'text/x-java-source', category: 'Java source' },
+  c: { format: 'c', mime: 'text/x-c', category: 'C/C++ source' },
+  h: { format: 'c', mime: 'text/x-c', category: 'C/C++ source' },
+  cc: { format: 'c', mime: 'text/x-c', category: 'C/C++ source' },
+  cpp: { format: 'c', mime: 'text/x-c', category: 'C/C++ source' },
+  hpp: { format: 'c', mime: 'text/x-c', category: 'C/C++ source' },
+  cs: { format: 'csharp', mime: 'text/x-csharp', category: 'C# source' },
+  txt: { format: 'text', mime: 'text/plain', category: 'Plain text' },
+};
+
+export const TEXT_EXTS = [...Object.keys(TEXT_FORMATS), 'json'];
+export const SUPPORTED_CATEGORIES = [...new Set([...Object.values(FORMATS).map(/* Transforms each item in the collection. */ (f) => f.category), ...Object.values(TEXT_FORMATS).map(/* Transforms each item in the collection. */ (f) => f.category), 'JSON', 'HTML document', 'XML document', 'SVG image'])];

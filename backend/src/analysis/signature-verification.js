@@ -1,5 +1,6 @@
 import { parsePE } from './pe.js';
-// Reports whether an embedded Authenticode signature EXISTS. It does NOT cryptographically validate it.
+
+// Checks file signatures against known patterns.
 export async function signatureModule({ filePath, file }) {
   if (file.detected?.format !== 'exe') return { status: 'unavailable', reason: 'Signature checks are only implemented for Windows PE files.', data: { verification: 'unavailable' }, findings: [] };
   const pe = await parsePE(filePath);

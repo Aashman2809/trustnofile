@@ -1,4 +1,4 @@
-// Usage: npm run scan -- <path-to-file>   (read-only static scan; prints JSON evidence)
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { hashFile } from '../src/analysis/hashing.js';

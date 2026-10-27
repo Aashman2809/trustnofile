@@ -5,7 +5,10 @@ import { RISK_LEVELS } from '../services/risk-assessment.service.js';
 import { toSummary } from '../services/report.service.js';
 import { computeStats } from '../services/stats.service.js';
 
+// Creates handlers for analysis API requests.
 export const analysisController = ({ orchestrator, analysisRepo, persistence = 'local_json_development_store' }) => {
+
+  // Loads load operation.
   const load = async (id) => {
     if (!isUuid(id)) throw new AppError(400, 'INVALID_ID', 'Analysis ID must be a valid UUID.');
     const a = await analysisRepo.getById(id.toLowerCase());
@@ -14,6 +17,8 @@ export const analysisController = ({ orchestrator, analysisRepo, persistence = '
   };
   return {
     load,
+
+    // Starts the analysis job.
     start: async (req, res, next) => {
       try {
         if (!isUuid(req.params.id)) throw new AppError(400, 'INVALID_ID', 'File ID must be a valid UUID.');
@@ -21,6 +26,8 @@ export const analysisController = ({ orchestrator, analysisRepo, persistence = '
         res.status(r.created ? 202 : 200).json({ analysis: toSummary(r.analysis), created: r.created, reason: r.reason });
       } catch (e) { next(e); }
     },
+
+    // Lists matching stored records.
     list: async (req, res, next) => {
       try {
         const { status, risk, sort } = req.query;
@@ -34,6 +41,8 @@ export const analysisController = ({ orchestrator, analysisRepo, persistence = '
         res.json({ items: items.map(toSummary), total, page, pageSize });
       } catch (e) { next(e); }
     },
+
+    // Calculates stats operation.
     stats: async (_req, res, next) => {
       try {
         const { items } = await analysisRepo.list({ page: 1, pageSize: Number.MAX_SAFE_INTEGER });
@@ -41,7 +50,11 @@ export const analysisController = ({ orchestrator, analysisRepo, persistence = '
         res.json({ ...s, recent: s.recent.map(toSummary), persistence });
       } catch (e) { next(e); }
     },
+
+    // Gets a stored record by ID.
     get: async (req, res, next) => { try { res.json({ analysis: toSummary(await load(req.params.id)) }); } catch (e) { next(e); } },
+
+    // Builds evidence operation.
     evidence: async (req, res, next) => {
       try {
         const a = await load(req.params.id);

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Minimal runner for the trusted TrustNoFile sandbox image. Input is never extracted."""
 import json
 import os
 import resource
@@ -10,6 +9,7 @@ import tempfile
 events = []
 path = "/input/payload.bin"
 
+# Applies resource limits to the sandbox process.
 def limits():
     resource.setrlimit(resource.RLIMIT_CPU, (20, 20))
     resource.setrlimit(resource.RLIMIT_AS, (192 * 1024 * 1024, 192 * 1024 * 1024))
@@ -35,7 +35,7 @@ try:
             child.wait()
             exit_code = 124
             events.append({"type": "execution_error", "detail": "Runner execution timed out"})
-        # Captured output is bounded and treated as untrusted telemetry.
+
         stdout_file.seek(0); stdout = stdout_file.read(2000).decode("utf-8", "replace")
         stderr_file.seek(0); stderr = stderr_file.read(2000).decode("utf-8", "replace")
 except Exception as exc:

@@ -19,6 +19,7 @@ import { createIntegrations } from './integrations/index.js';
 import { analysisController as makeAnalysisController } from './controllers/analysis.controller.js';
 import { reportController as makeReportController } from './controllers/report.controller.js';
 
+// Creates and configures the Express application.
 export async function createApp({ integrations = createIntegrations() } = {}) {
   let repositories = null;
   let persistence = 'local_json_development_store';
@@ -54,12 +55,12 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
   app.use(rateLimit({ windowMs: 60_000, limit: 300 }));
   app.use(express.json({ limit: '100kb' }));
   app.use('/api', createHealthRouter({ integrations, persistence,
-    databaseStatus: persistence === 'postgresql' ? () => integrations.database.getStatus() : async () => activeDatabaseStatus || await integrations.database.getStatus() }));
+    databaseStatus: persistence === 'postgresql' ?/* Handles the callback for this operation. */ () => integrations.database.getStatus() :/* Handles the callback for this operation. */ async () => activeDatabaseStatus || await integrations.database.getStatus() }));
   app.use('/api/files', createFilesRouter({ fileRepo, uploadService, duplicateService, deletionService, analysisController }));
   app.use('/api/analyses', createAnalysisRouter({ analysisController, reportController }));
   app.use(notFound);
   app.use(errorHandler);
-  app.locals.jobs = jobs; // exposed for tests
+  app.locals.jobs = jobs;
   app.locals.persistence = persistence;
   return app;
 }

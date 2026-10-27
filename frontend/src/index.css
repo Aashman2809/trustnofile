@@ -21,7 +21,7 @@
 body { @apply antialiased; margin: 0; background: var(--canvas); color: var(--ink); }
 ::selection { background: #d9eaa6; color: var(--ink); }
 
-/* Chunky, print-inspired surfaces with a restrained signal-green accent. */
+
 aside { background: var(--paper) !important; border-color: var(--line) !important; }
 aside > div:first-child { letter-spacing: -0.05em; text-transform: uppercase; }
 aside > div:first-child svg { color: var(--ink); stroke-width: 2.8; }
@@ -67,7 +67,7 @@ table tbody tr:last-child { border-bottom: 0; }
 input, select { border-radius: 2px !important; }
 details pre { background: #ebe6d9 !important; border: 1px solid var(--line); }
 
-/* Keep risk and system messages distinct while softening their default neon palette. */
+
 :where([class*="bg-red-50"]) { background: #f4e2d9 !important; }
 :where([class*="border-red-200"]) { border-color: #a84d37 !important; }
 :where([class*="text-red-700"], [class*="text-red-800"], [class*="text-red-900"]) { color: #873e30 !important; }

@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 const BLOCK = 65536;
 const COMPRESSED = ['zip', 'docx', 'xlsx', 'pptx', 'pdf'];
 
+// Handles shannon operation.
 export function shannon(buf) {
   if (!buf.length) return 0;
   const c = new Array(256).fill(0);
@@ -11,6 +12,7 @@ export function shannon(buf) {
   return h;
 }
 
+// Measures byte entropy in the file.
 export async function entropyModule({ filePath, file }) {
   const counts = new Array(256).fill(0);
   let total = 0, maxBlock = 0, pending = Buffer.alloc(0);

@@ -12,11 +12,16 @@ export const INDICATORS = [
   { code: 'SCRIPT_KEYWORDS', title: 'Script-related keywords', severity: 'low', re: /eval\(|document\.write|WScript\.Shell|ActiveXObject|<script/i },
   { code: 'BASE64_BLOB', title: 'Long base64-like strings', severity: 'low', re: /[A-Za-z0-9+/]{200,}={0,2}/, exclude: /^[0-9A-Fa-f]+$/ },
 ];
+
+// Redacts redact operation.
 const redact = (s) => s.replace(/(password|passwd|pwd|secret|token|api[_-]?key)(\s*[=:]\s*)\S+/gi, '$1$2[REDACTED]').slice(0, SAMPLE_LEN);
 
+// Extracts readable strings from the file.
 export async function stringsModule({ filePath }) {
-  const stats = Object.fromEntries(INDICATORS.map((i) => [i.code, { count: 0, samples: [] }]));
+  const stats = Object.fromEntries(INDICATORS.map(/* Transforms each item in the collection. */ (i) => [i.code, { count: 0, samples: [] }]));
   let scanned = 0, stringCount = 0, carry = '';
+
+  // Handles handle operation.
   const handle = (s) => {
     stringCount++;
     for (const ind of INDICATORS) {
@@ -36,7 +41,7 @@ export async function stringsModule({ filePath }) {
     }
   }
   if (carry.length >= 6) handle(carry);
-  const findings = INDICATORS.filter((i) => stats[i.code].count).map((i) => ({
+  const findings = INDICATORS.filter(/* Keeps items that match the condition. */ (i) => stats[i.code].count).map(/* Transforms each item in the collection. */ (i) => ({
     code: `STR_${i.code}`, title: i.title, severity: i.severity, kind: 'heuristic',
     description: 'A string pattern was found. Presence of a string does not make a file malicious; treat samples as untrusted data.',
     evidence: { matches: stats[i.code].count, samples: stats[i.code].samples },

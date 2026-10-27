@@ -5,7 +5,7 @@ Local web application that analyzes untrusted files using signature-based identi
 **Status (v0.6.0):** upload, validation, static analysis, deterministic risk assessment, reports, history, JSON export, optional Gemini development integration, PostgreSQL repositories, and optional isolated Linux ELF sandbox integration are implemented. Gemini and other external services remain optional and report their actual status.
 
 ## Requirements
-Node.js 22.13 or newer (tested on 24), npm. Optional: the `yara` program for YARA scanning. PostgreSQL, Docker Engine, and a Gemini API key are only needed for their respective integrations.
+Node.js 22.13 or newer (tested on 24), npm. Optional: the `yara` program and `unzip` for YARA scanning and rule updates. PostgreSQL, Docker Engine, and a Gemini API key are only needed for their respective integrations.
 
 ## Run
 ```
@@ -27,6 +27,9 @@ npm test
 ```
 Backend tests use only synthetic fixtures (no malware). There are currently **no automated frontend tests**; the frontend production build is verified with `npm run build`.
 
+## Detection-quality corpus
+`cd backend && npm run eval:corpus` runs a safe, generated corpus of benign, suspicious-pattern, malformed, and mislabeled inputs. It reports expected-indicator recall, missed indicators, and false-positive rates on the benign subset. The corpus contains synthetic fixtures, not real malware, so its scores are regression signals and not estimates of real-world detection accuracy.
+
 ## CLI scan (no server needed)
 `npm run scan -- <path-to-file>` prints the structured evidence as JSON.
 
@@ -47,12 +50,14 @@ Backend tests use only synthetic fixtures (no malware). There are currently **no
 | RISK_MODERATE / RISK_HIGH / RISK_VERY_HIGH | 25 / 50 / 75 | Score band thresholds (must ascend) |
 | LOG_SILENT | unset | Set to silence logs |
 
+YARA rule source is pinned in `backend/rules/ruleset.json` to the YARA Forge `core` package. Install or refresh that version with `cd backend && npm run rules:sync`; pass a different dated release tag with `npm run rules:sync -- YYYYMMDD`. This downloads one source package, records its SHA-256 and release metadata, and requires `unzip`. Rule files are not bundled; the report labels YARA as skipped, unavailable, or incomplete until a complete scan actually runs. Review upstream rule licenses before redistributing downloaded rules.
+
 ## Where data lives
 Uploaded files: `backend/storage/uploads/<uuid>.bin`. By default, records and reports live in `backend/data/*.json`; when PostgreSQL is connected, its repositories are selected instead. Configuring Gemini sends only minimized file size/type, module states, finding codes/severities, and deterministic assessment fields. File bytes, filenames, extracted strings, credentials, and filesystem data are not sent. Gemini is intended for development within applicable API limits; AWS Bedrock is the intended future production provider. Files are not encrypted and are not deleted automatically. Use **Delete file** or **Remove entry** on the History page.
 
 ## Supported uploads
 
-Windows PE and Linux ELF executables, PDF, ZIP archives, OpenXML and legacy Office documents, PNG/JPEG/GIF/WebP/BMP images, and UTF-8 text/JSON. Content signatures determine the detected type; extensions and browser MIME are recorded as untrusted metadata. Unsupported binary formats are rejected.
+Windows PE and Linux ELF executables, PDF, ZIP archives, OpenXML and legacy Office documents, PNG/JPEG/GIF/WebP/BMP/SVG images, HTML/XML, YAML, JSON, TOML, INI/configuration, CSV, Markdown, logs, and common JavaScript/TypeScript, CSS, SQL, shell, Python, and compiled-language source files. Binary formats are identified by content signatures; HTML/XML/SVG use bounded markup heuristics. Other text subtypes use the filename extension only after the content passes UTF-8 validation, and the report labels that basis. Static checks inspect bounded text samples; files are never rendered or executed. Unsupported binary formats are rejected.
 
 ## Project layout
 `backend/src`: `routes` and `controllers` (thin HTTP), `services` (upload, validation, orchestration, risk, reports, deletion), `analysis` (independent static modules), `repositories` (contracts and local JSON implementations), and `integrations` (provider-neutral LLM contract with Gemini adapter, PostgreSQL, Docker sandbox, and disabled fallback adapters). `frontend/src`: `pages`, `components`, `services/api.js`, `lib`.

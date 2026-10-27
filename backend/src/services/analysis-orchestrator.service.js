@@ -12,10 +12,11 @@ import { validateLlmResult } from '../integrations/llm/llm.interface.js';
 import { minimizeEvidence } from '../integrations/llm/evidence.js';
 
 const SEV = { high: 3, medium: 2, low: 1, info: 0 };
+
+// Formats a date as an ISO timestamp.
 const iso = () => new Date().toISOString();
 
-// Accept only application-defined behavioral event codes. Provider/container text stays
-// untrusted evidence and is never interpreted as policy or passed back into the LLM.
+// Filters findings to safe behavior data.
 function safeBehaviorFindings(value) {
   const mapping = {
     process_created: ['SANDBOX_PROCESS_CREATED', 'Process created in sandbox', 'low'],
@@ -25,7 +26,7 @@ function safeBehaviorFindings(value) {
     execution_error: ['SANDBOX_EXECUTION_ERROR', 'Sandbox execution error', 'info'],
   };
   const events = Array.isArray(value?.events) ? value.events.slice(0, 100) : [];
-  return events.flatMap((e) => {
+  return events.flatMap(/* Handles the callback for this operation. */ (e) => {
     if (!e || typeof e !== 'object' || !Object.hasOwn(mapping, e.type)) return [];
     const item = mapping[e?.type];
     const [code, title, severity] = item;
@@ -35,9 +36,10 @@ function safeBehaviorFindings(value) {
   });
 }
 
+// Filters analysis data to safe behavior fields.
 function safeBehaviorData(value) {
   const allowed = new Set(['process_created', 'network_attempt', 'file_written', 'persistence_attempt', 'execution_error']);
-  const events = (Array.isArray(value?.events) ? value.events : []).slice(0, 100).flatMap((e) => {
+  const events = (Array.isArray(value?.events) ? value.events : []).slice(0, 100).flatMap(/* Handles the callback for this operation. */ (e) => {
     if (!e || typeof e !== 'object' || !allowed.has(e.type)) return [];
     return [{ type: e.type, detail: typeof e.detail === 'string' ? e.detail.slice(0, 300) : null }];
   });
@@ -45,18 +47,24 @@ function safeBehaviorData(value) {
     ...(value?.outputMalformed === true ? { outputMalformed: true } : {}) };
 }
 
+// Creates the analysis workflow coordinator.
 export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = runStaticAnalysis, storageDir = config.storageDir, integrations = null }) {
   const locks = new Map();
+
+  // Runs lock.
   const withLock = (key, fn) => {
-    const next = (locks.get(key) || Promise.resolve()).catch(() => {}).then(fn);
+    const next = (locks.get(key) || Promise.resolve()).catch(/* Handles the asynchronous error. */ () => {}).then(fn);
     locks.set(key, next);
-    next.finally(() => { if (locks.get(key) === next) locks.delete(key); }).catch(() => {});
+    next.finally(/* Runs cleanup after the asynchronous operation. */ () => { if (locks.get(key) === next) locks.delete(key); }).catch(/* Handles the asynchronous error. */ () => {});
     return next;
   };
 
+  // Executes execute operation.
   async function execute(id) {
     let a = await analysisRepo.getById(id);
     const t0 = Date.now();
+
+    // Runs step operation.
     const step = async (to, note = null, patch = {}) => {
       if (!canTransition(a.status, to)) throw new Error(`Invalid transition ${a.status} -> ${to}`);
       const now = iso();
@@ -78,7 +86,7 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
       await step('STATIC_ANALYSIS');
       const result = await runStatic({ filePath, file });
 
-      let evidence = { modules: result.modules, findings: [...result.findings].sort((x, y) => SEV[y.severity] - SEV[x.severity]), summary: result.summary };
+      let evidence = { modules: result.modules, findings: [...result.findings].sort(/* Compares two items for sorting. */ (x, y) => SEV[y.severity] - SEV[x.severity]), summary: result.summary };
       await step('AGGREGATING_EVIDENCE', null, { evidence });
 
       await step('ASSESSING_RISK');
@@ -100,7 +108,7 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
           ai = { ...ai, status: 'error', message: 'The configured LLM provider is unavailable; deterministic results are unaffected.' };
         }
       } catch (err) {
-        // Provider exception messages can contain request details; keep them out of logs.
+
         log('error', 'llm_failed', { analysisId: id, error: 'provider_request_failed' });
         ai = { status: 'error', message: 'LLM analysis failed or returned invalid output; deterministic results are unaffected.', riskAssessment: null, reasoning: null, sandboxRecommended: null, keyConcerns: [], uncertainties: [] };
       }
@@ -118,15 +126,15 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
             if (raw && ['completed', 'timeout', 'failed', 'unavailable'].includes(raw.status)) {
               const behaviorData = safeBehaviorData(raw.behavioralEvidence);
               behavioral = { status: raw.status, message: typeof raw.message === 'string' ? raw.message.slice(0, 300) : null, behavioralEvidence: behaviorData,
-                logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 100).map((x) => String(x).slice(0, 2000)) : [],
-                artifacts: Array.isArray(raw.artifacts) ? raw.artifacts.slice(0, 20).flatMap((x) => x && typeof x === 'object' && typeof x.name === 'string'
+                logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 100).map(/* Transforms each item in the collection. */ (x) => String(x).slice(0, 2000)) : [],
+                artifacts: Array.isArray(raw.artifacts) ? raw.artifacts.slice(0, 20).flatMap(/* Handles the callback for this operation. */ (x) => x && typeof x === 'object' && typeof x.name === 'string'
                   ? [{ name: x.name.slice(0, 200), size: Number.isSafeInteger(x.size) ? Math.max(0, Math.min(x.size, 10 * 1024 * 1024)) : null }] : []) : [] };
               const ev = raw.status === 'completed' ? safeBehaviorFindings(behaviorData) : [];
               if (raw.status === 'completed') {
                 behavioral.findings = ev;
                 evidence = { ...evidence, behavioralFindings: ev };
                 finalAssessment = assessRisk({ findings: [...evidence.findings, ...ev], modules: evidence.modules, file });
-                finalAssessment.limitations = finalAssessment.limitations.filter((x) => !x.startsWith('Behavioral (sandbox) analysis was not performed'));
+                finalAssessment.limitations = finalAssessment.limitations.filter(/* Keeps items that match the condition. */ (x) => !x.startsWith('Behavioral (sandbox) analysis was not performed'));
                 finalAssessment.evidenceSufficiency = 'combined_static_and_behavioral';
               }
             }
@@ -136,8 +144,8 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
           behavioral = { status: 'failed', message: 'Sandbox analysis failed; no host execution was attempted.' };
         }
       } else {
-        // Mark the optional stage explicitly as skipped in persisted stage history.
-        const stage = a.stages.find((s) => s.name === 'sandbox_analysis');
+
+        const stage = a.stages.find(/* Checks whether the item matches the lookup criteria. */ (s) => s.name === 'sandbox_analysis');
         if (stage) { stage.status = 'skipped'; stage.note = 'Policy did not require sandbox analysis.'; }
         a = await analysisRepo.update(id, { stages: a.stages });
       }
@@ -156,9 +164,10 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
   }
 
   return {
-    // Returns the existing analysis instead of duplicating work, unless force is set.
+
+    // Starts the analysis job.
     start(fileId, { force = false } = {}) {
-      return withLock(fileId, async () => {
+      return withLock(fileId,/* Handles the callback for this operation. */ async () => {
         const file = await fileRepo.getById(fileId);
         if (!file) throw new AppError(404, 'FILE_NOT_FOUND', 'No file with that ID.');
         if (file.fileDeleted) throw new AppError(409, 'FILE_DELETED', 'The stored file was deleted, so it cannot be analyzed.');
@@ -174,11 +183,12 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
           file: { id: file.id, originalName: file.originalName, size: file.size, detected: file.detected, sha256: file.sha256, uploadedAt: file.uploadedAt },
           evidence: null, assessment: null, report: null,
         });
-        jobs.enqueue(() => execute(analysis.id));
+        jobs.enqueue(/* Handles the callback for this operation. */ () => execute(analysis.id));
         return { analysis, created: true, reason: null };
       });
     },
-    // In-process jobs die with the process; mark anything left mid-flight as failed on startup.
+
+    // Recovers analyses interrupted by a previous run.
     async recoverInterrupted() {
       for (const a of await analysisRepo.listNonTerminal()) {
         const now = iso();

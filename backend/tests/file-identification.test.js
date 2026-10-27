@@ -7,8 +7,11 @@ import { identifyFile } from '../src/analysis/file-identification.js';
 import { validateType } from '../src/services/validation.service.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tnf-ident-'));
+
+// Saves save operation.
 const save = async (name, bytes) => { const p = path.join(root, name); await fs.writeFile(p, bytes); return p; };
 
+// Inspects zip operation.
 function zip(entries) {
   const locals = [], central = []; let offset = 0;
   for (const [name, bodyText] of Object.entries(entries)) {
@@ -25,7 +28,7 @@ function zip(entries) {
   return Buffer.concat([...locals, directory, end]);
 }
 
-test('identifies signature-backed PE, PDF, ZIP, OpenXML and image formats', async () => {
+test('identifies signature-backed PE, PDF, ZIP, OpenXML and image formats',/* Runs the test case: identifies signature-backed PE, PDF, ZIP, OpenXML and image formats. */ async () => {
   const pe = Buffer.alloc(320); pe.write('MZ'); pe.writeUInt32LE(64, 0x3c); pe.writeUInt32LE(0x00004550, 64); pe.writeUInt16LE(0x14c, 68); pe.writeUInt16LE(224, 84);
   const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n%%EOF\n');
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxioAAAAASUVORK5CYII=', 'base64');
@@ -43,7 +46,7 @@ test('identifies signature-backed PE, PDF, ZIP, OpenXML and image formats', asyn
   }
 });
 
-test('extension mismatch is recorded from content signature, not filename or MIME', async () => {
+test('extension mismatch is recorded from content signature, not filename or MIME',/* Runs the test case: extension mismatch is recorded from content signature, not filename or MIME. */ async () => {
   const pdf = Buffer.from('%PDF-1.4\n');
   const p = await save('invoice.txt', pdf);
   const verdict = await validateType(p, 'txt', pdf.length);
@@ -51,7 +54,7 @@ test('extension mismatch is recorded from content signature, not filename or MIM
   assert.equal(verdict.mismatch, true);
 });
 
-test('malformed and unsupported binary input is rejected; ordinary text remains supported', async () => {
+test('malformed and unsupported binary input is rejected; ordinary text remains supported',/* Runs the test case: malformed and unsupported binary input is rejected; ordinary text remains supported. */ async () => {
   const malformed = Buffer.from([0, 1, 2, 3, 250, 251, 252, 0, 9, 9]);
   const invalid = await validateType(await save('bad.dat', malformed), 'dat', malformed.length);
   assert.equal(invalid.accepted, false);

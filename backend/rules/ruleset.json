@@ -1,0 +1,10 @@
+{
+  "source": "YARA Forge",
+  "sourceUrl": "https://github.com/YARAHQ/yara-forge",
+  "package": "core",
+  "release": "20261026",
+  "ruleCount": 5128,
+  "asset": "yara-forge-rules-core.zip",
+  "sha256": null,
+  "syncedAt": null
+}

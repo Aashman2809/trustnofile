@@ -1,19 +1,25 @@
-/**
- * Job manager contract: enqueue(fn) -> void; onIdle() -> Promise resolved when no jobs are queued or running.
- * This in-process implementation LOSES queued/running jobs when the backend restarts
- * (the orchestrator marks such analyses FAILED on next startup). Replace with a durable queue later.
- */
+
+
+// Creates the in-process analysis job manager.
 export function createInProcessJobManager({ concurrency = 2 } = {}) {
   const queue = []; let running = 0; let waiters = [];
-  const settle = () => { if (!running && !queue.length) { waiters.forEach((w) => w()); waiters = []; } };
+
+  // Completes settle operation.
+  const settle = () => { if (!running && !queue.length) { waiters.forEach(/* Processes each item in the collection. */ (w) => w()); waiters = []; } };
+
+  // Processes pump operation.
   const pump = () => {
     while (running < concurrency && queue.length) {
       const job = queue.shift(); running++;
-      Promise.resolve().then(job).catch(() => {}).finally(() => { running--; pump(); settle(); });
+      Promise.resolve().then(job).catch(/* Handles the asynchronous error. */ () => {}).finally(/* Runs cleanup after the asynchronous operation. */ () => { running--; pump(); settle(); });
     }
   };
   return {
+
+    // Queues enqueue operation.
     enqueue(fn) { queue.push(fn); pump(); },
-    onIdle() { return running || queue.length ? new Promise((r) => waiters.push(r)) : Promise.resolve(); },
+
+    // Handles idle.
+    onIdle() { return running || queue.length ? new Promise(/* Handles the callback for this operation. */ (r) => waiters.push(r)) : Promise.resolve(); },
   };
 }

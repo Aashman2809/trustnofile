@@ -1,5 +1,3 @@
--- PostgreSQL schema used by the optional PostgreSQL adapter.
--- IDs are application-generated UUIDs. All application queries are parameterized.
 CREATE TABLE files (
   id UUID PRIMARY KEY,
   stored_name VARCHAR(80) NOT NULL,
@@ -42,8 +40,6 @@ CREATE INDEX idx_analyses_file ON analyses (file_id, started_at);
 CREATE INDEX idx_analyses_status ON analyses (status);
 CREATE INDEX idx_analyses_risk ON analyses (risk_level);
 
--- Retained normalized tables support future querying. Current repository contracts persist
--- full structured evidence in analyses.evidence and the complete report in analyses.report.
 CREATE TABLE analysis_modules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   analysis_id UUID NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
