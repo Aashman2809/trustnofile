@@ -18,9 +18,11 @@ import { createOrchestrator } from './services/analysis-orchestrator.service.js'
 import { createIntegrations } from './integrations/index.js';
 import { analysisController as makeAnalysisController } from './controllers/analysis.controller.js';
 import { reportController as makeReportController } from './controllers/report.controller.js';
+import { createSupabaseAuthMiddleware } from './middleware/auth.middleware.js';
 
 // Creates and configures the Express application.
 export async function createApp({ integrations = createIntegrations() } = {}) {
+  if (config.authRequired && (!config.supabaseUrl || !config.supabaseAnonKey || !config.authAllowedUserId)) throw new Error('AUTH_REQUIRED requires SUPABASE_URL, SUPABASE_ANON_KEY, and AUTH_ALLOWED_USER_ID.');
   let repositories = null;
   let persistence = 'local_json_development_store';
   let activeDatabaseStatus = null;
@@ -36,16 +38,19 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
       persistence = 'postgresql';
     } else activeDatabaseStatus = dbStatus.status === 'connected' ? { status: 'unavailable', active: 'local_json_development_store' } : dbStatus;
   } catch { activeDatabaseStatus = { status: 'unavailable', active: 'local_json_development_store' }; }
+  if (config.requireDatabase && !repositories) throw new Error('REQUIRE_DATABASE is enabled but PostgreSQL is unavailable or not configured.');
+  if (config.requireStorage && (await integrations.storage.getStatus()).status !== 'available') throw new Error('REQUIRE_STORAGE is enabled but object storage is unavailable or misconfigured.');
   const fileRepo = repositories?.fileRepo || await createLocalFileRepository(config.dataDir);
   const analysisRepo = repositories?.analysisRepo || await createLocalAnalysisRepository(config.dataDir);
   const jobs = createInProcessJobManager();
   const orchestrator = createOrchestrator({ fileRepo, analysisRepo, jobs, integrations });
   await orchestrator.recoverInterrupted();
-  const uploadService = createUploadService({ fileRepo });
+  const uploadService = createUploadService({ fileRepo, storage: integrations.storage });
   const duplicateService = createDuplicateService({ fileRepo, analysisRepo });
-  const deletionService = createDeletionService({ fileRepo, analysisRepo });
+  const deletionService = createDeletionService({ fileRepo, analysisRepo, storage: integrations.storage });
   const analysisController = makeAnalysisController({ orchestrator, analysisRepo, persistence });
   const reportController = makeReportController({ load: analysisController.load, integrations });
+  const authenticate = createSupabaseAuthMiddleware();
 
   const app = express();
   app.disable('x-powered-by');
@@ -56,8 +61,8 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
   app.use(express.json({ limit: '100kb' }));
   app.use('/api', createHealthRouter({ integrations, persistence,
     databaseStatus: persistence === 'postgresql' ?/* Handles the callback for this operation. */ () => integrations.database.getStatus() :/* Handles the callback for this operation. */ async () => activeDatabaseStatus || await integrations.database.getStatus() }));
-  app.use('/api/files', createFilesRouter({ fileRepo, uploadService, duplicateService, deletionService, analysisController }));
-  app.use('/api/analyses', createAnalysisRouter({ analysisController, reportController }));
+  app.use('/api/files', authenticate, createFilesRouter({ fileRepo, uploadService, duplicateService, deletionService, analysisController }));
+  app.use('/api/analyses', authenticate, createAnalysisRouter({ analysisController, reportController }));
   app.use(notFound);
   app.use(errorHandler);
   app.locals.jobs = jobs;

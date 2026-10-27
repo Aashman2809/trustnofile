@@ -63,6 +63,7 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
   async function execute(id) {
     let a = await analysisRepo.getById(id);
     const t0 = Date.now();
+    let materialized = null;
 
     // Runs step operation.
     const step = async (to, note = null, patch = {}) => {
@@ -77,7 +78,8 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
       let reject = null, filePath = null;
       if (!file || path.basename(file.storedName) !== file.storedName) reject = 'The uploaded file record is missing.';
       else {
-        filePath = path.join(storageDir, file.storedName);
+        materialized = integrations?.storage ? await integrations.storage.materialize(file.storedName) : { filePath: path.join(storageDir, file.storedName), cleanup:/* Requires no cleanup for the existing local file. */ async () => {} };
+        filePath = materialized.filePath;
         try { const st = await fs.stat(filePath); if (st.size !== file.size) reject = 'Stored file size differs from the upload record.'; }
         catch { reject = 'The stored file could not be found.'; }
       }
@@ -179,6 +181,8 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
         try { await step('FAILED', `Unexpected error during ${a.status}.`, { error: { code: 'ANALYSIS_ERROR', message: 'The analysis failed unexpectedly. You can retry it.' } }); }
         catch (e2) { log('error', 'analysis_fail_transition_failed', { analysisId: id, error: String(e2.message).slice(0, 200) }); }
       }
+    } finally {
+      await materialized?.cleanup?.().catch(/* Records temporary-file cleanup failures without changing the analysis result. */ (err) => log('error', 'analysis_temp_cleanup_failed', { analysisId: id, error: String(err.message).slice(0, 120) }));
     }
   }
 

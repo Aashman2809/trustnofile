@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
-import { LayoutDashboard, FileSearch, History as HistoryIcon, Settings as Cog, ShieldCheck, Menu } from 'lucide-react';
+import { LayoutDashboard, FileSearch, History as HistoryIcon, Settings as Cog, ShieldCheck, Menu, LogOut } from 'lucide-react';
 import Placeholder from './components/Placeholder.jsx';
 import Settings from './pages/Settings.jsx';
 import Analyze from './pages/Analyze.jsx';
@@ -8,6 +8,8 @@ import AnalysisProgress from './pages/AnalysisProgress.jsx';
 import Report from './pages/Report.jsx';
 import Overview from './pages/Overview.jsx';
 import History from './pages/History.jsx';
+import SignIn from './components/SignIn.jsx';
+import { authConfigured, restoreSession, signOut } from './services/auth.js';
 
 const nav = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
@@ -18,6 +20,18 @@ const nav = [
 
 export default function App() {
   const [open, setOpen] = useState(false);
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(!authConfigured);
+  useEffect(() => {
+    if (!authConfigured) return undefined;
+    let active = true;
+    restoreSession().then((saved) => { if (active) { setSession(saved); setAuthReady(true); } });
+    const update = () => restoreSession().then((saved) => { if (active) setSession(saved); });
+    window.addEventListener('trustnofile-session', update);
+    return () => { active = false; window.removeEventListener('trustnofile-session', update); };
+  }, []);
+  if (authConfigured && !authReady) return <main className="flex min-h-screen items-center justify-center text-sm text-slate-500">Checking sign-in…</main>;
+  if (authConfigured && !session) return <SignIn onSignedIn={setSession} />;
   return (
     <div className="app-shell flex min-h-screen">
       <aside className={`${open ? 'block' : 'hidden'} fixed inset-y-0 z-20 w-64 border-r border-slate-200 bg-white p-4 md:static md:block`}>
@@ -33,6 +47,7 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
+        {authConfigured && <button onClick={() => signOut().then(() => setSession(null))} className="mt-6 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"><LogOut size={18} />Sign out</button>}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
@@ -50,7 +65,7 @@ export default function App() {
             <Route path="*" element={<Placeholder title="Page not found" milestone="n/a" />} />
           </Routes>
         </main>
-        <footer className="border-t border-slate-200 px-6 py-3 text-xs text-slate-500">v0.6.0 · Development build · Local use only</footer>
+        <footer className="border-t border-slate-200 px-6 py-3 text-xs text-slate-500">v0.6.0 · Private single-user demo</footer>
       </div>
     </div>
   );

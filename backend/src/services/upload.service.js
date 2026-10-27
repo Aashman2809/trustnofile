@@ -16,7 +16,7 @@ export function sanitizeFilename(raw) {
 export const toPublic = ({ storedName, ...rest }) => rest;
 
 // Creates the file upload service.
-export function createUploadService({ fileRepo }) {
+export function createUploadService({ fileRepo, storage = { put:/* Stores an object key for tests without configured storage. */ async (_path, key) => key } }) {
   return {
 
     // Processes process operation.
@@ -37,7 +37,10 @@ export function createUploadService({ fileRepo }) {
           sha256: hashes.sha256, md5: hashes.md5,
           status: 'UPLOADED', uploadedAt: new Date().toISOString(),
         };
-        await fileRepo.create(record);
+        await storage.put(file.path, record.storedName, file.mimetype || 'application/octet-stream');
+        try { await fileRepo.create(record); }
+        catch (error) { await storage.delete?.(record.storedName).catch(/* Ignores cleanup failure while preserving the database error. */ () => {}); throw error; }
+        await storage.cleanupUpload?.(file.path, record.storedName).catch(/* Keeps a successful object upload successful if temp cleanup fails. */ () => {});
         return toPublic(record);
       } catch (err) {
         if (file?.path) await fs.rm(file.path, { force: true });

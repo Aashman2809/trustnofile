@@ -41,7 +41,13 @@ Migration should require adding a Bedrock adapter and AWS SDK dependency, select
 
 ## PostgreSQL
 
-Set `DATABASE_URL` to a PostgreSQL connection string and apply `docs/database-schema.sql` to an empty database. Optionally set `DATABASE_SSL=true` to require verified TLS. The adapter checks the live connection with `SELECT 1`, then `createApp()` selects the database repositories. If the configured database cannot connect during startup, the app uses the existing local JSON store and reports that active store. If PostgreSQL becomes unavailable after startup, affected operations fail; they are not reported as persisted.
+Set `DATABASE_URL` to a PostgreSQL connection string and apply `docs/database-schema.sql` to an empty database. Optionally set `DATABASE_SSL=true` to require verified TLS. The adapter checks the live connection with `SELECT 1`, then `createApp()` selects the database repositories. If the configured database cannot connect during startup, the app normally uses the existing local JSON store and reports that active store. Set `REQUIRE_DATABASE=true` for hosted environments to fail startup instead of silently choosing the non-durable local store. If PostgreSQL becomes unavailable after startup, affected operations fail; they are not reported as persisted.
+
+## Supabase object storage and authentication
+
+Set `STORAGE_PROVIDER=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` to enable private bucket storage. The service key remains in the backend only. Uploaded objects are stored under generated UUID names; analysis materializes each object into a private temporary directory and removes it after the job. File deletion removes the object from the bucket. The local filesystem provider remains the default for development. `REQUIRE_STORAGE=true` makes startup verify that the bucket exists and is reachable.
+
+Set `AUTH_REQUIRED=true`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `AUTH_ALLOWED_USER_ID` to require a verified Supabase access token on file and analysis routes and restrict access to one user. Public health and capability routes remain available. This project has shared, non-user-scoped records, so disable Supabase public sign-ups and configure one owner account. This is not multi-tenant authorization.
 
 All repository SQL uses positional parameters. Business logic continues to use `file.repository.js` and `analysis.repository.js`. The JSON repositories remain the default when no database URL is configured and remain useful in tests and development. The SQL schema persists complete analysis evidence and reports in JSONB alongside normalized lookup columns. The existing job manager remains in process; an interrupted analysis is marked failed on restart and can be retried.
 

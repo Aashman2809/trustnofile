@@ -282,7 +282,8 @@ export default function Report() {
       </Section>
 
       <Section id="sec-export" icon={Download} title="Export">
-        <a href={api.reportDownloadUrl(report.analysis.id)} download className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"><Download size={16} /> Download JSON report</a>
+        <button onClick={() => api.downloadReport(report.analysis.id).catch((failure) => setDownloadError(failure.message))} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"><Download size={16} /> Download JSON report</button>
+        {downloadError && <p role="alert" className="mt-2 text-sm text-red-700">{downloadError}</p>}
         <p className="mt-2 text-xs text-slate-500">Schema version {report.schemaVersion}. Generated {formatDate(report.generatedAt)}.</p>
         <p className="mt-2 text-xs text-slate-500">{report.disclaimer}</p>
       </Section>

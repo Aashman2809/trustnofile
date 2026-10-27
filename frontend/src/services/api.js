@@ -1,14 +1,22 @@
+import { getAccessToken } from './auth.js';
+
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+
 async function request(path, options) {
-  const res = await fetch(`/api${path}`, options);
+  const token = await getAccessToken();
+  const headers = new Headers(options?.headers || {});
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${apiBase}/api${path}`, { ...options, headers });
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new Error(body?.error?.message || `Request failed (${res.status})`);
   return body;
 }
 
 function uploadFile(file, onProgress) {
-  return new Promise((resolve, reject) => {
+  return getAccessToken().then((token) => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/files');
+    xhr.open('POST', `${apiBase}/api/files`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
     xhr.onerror = () => reject(new Error('Network error: is the backend running?'));
     xhr.onload = () => {
@@ -19,7 +27,19 @@ function uploadFile(file, onProgress) {
     const fd = new FormData();
     fd.append('file', file);
     xhr.send(fd);
-  });
+  }));
+}
+
+async function downloadReport(id) {
+  const token = await getAccessToken();
+  const response = await fetch(`${apiBase}/api/analyses/${id}/report.json`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw new Error('Could not download the report. Sign in again and retry.');
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `trustnofile-report-${id}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 export const api = {
   health: () => request('/health'),
@@ -42,4 +62,5 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, history }),
   }),
+  downloadReport,
 };

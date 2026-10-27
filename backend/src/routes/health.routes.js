@@ -9,7 +9,7 @@ export function createHealthRouter({ integrations, persistence = 'local_json_dev
   r.get('/health',/* Handles the response for this request. */ (_q, res) => res.json({ status: 'ok', version: config.version, time: new Date().toISOString() }));
   r.get('/config/capabilities',/* Handles the response for this request. */ async (_q, res) => {
     const yara = await yaraAvailability();
-    const [database, llm, sandbox] = await Promise.allSettled([databaseStatus(), integrations.llm.getStatus(), integrations.sandbox.getStatus()]);
+    const [database, llm, sandbox, storage] = await Promise.allSettled([databaseStatus(), integrations.llm.getStatus(), integrations.sandbox.getStatus(), integrations.storage?.getStatus?.() || Promise.resolve({ status: 'unavailable' })]);
     res.json({
       version: config.version,
       upload: { maxMb: config.maxUploadMb, categories: SUPPORTED_CATEGORIES, enabled: true },
@@ -19,6 +19,7 @@ export function createHealthRouter({ integrations, persistence = 'local_json_dev
         database: database.status === 'fulfilled' ? database.value : { status: 'unavailable', active: persistence },
         llm: llm.status === 'fulfilled' ? llm.value : { status: 'unavailable' },
         sandbox: sandbox.status === 'fulfilled' ? sandbox.value : { status: 'unavailable' },
+        storage: storage.status === 'fulfilled' ? storage.value : { status: 'unavailable' },
       },
     });
   });
