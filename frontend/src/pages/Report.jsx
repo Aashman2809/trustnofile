@@ -23,6 +23,20 @@ export default function Report() {
   const [query, setQuery] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [copiedHash, setCopiedHash] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const [downloadError, setDownloadError] = useState('');
+
+  const copyHash = async () => {
+    try {
+      await navigator.clipboard.writeText(file.sha256);
+      setCopiedHash(true);
+      setCopyError('');
+      window.setTimeout(() => setCopiedHash(false), 1800);
+    } catch {
+      setCopyError('Could not copy the hash. Select and copy it manually.');
+    }
+  };
 
   const handleSendChat = async (e) => {
     e?.preventDefault();
@@ -77,7 +91,7 @@ export default function Report() {
           <Field label="Extension">{file.extension || '(none)'}{file.typeMismatch && <span className="ml-2 text-xs text-amber-800">does not match content</span>}</Field>
           <Field label="Browser-declared MIME type">{file.declaredMime || '(not provided)'}</Field>
           <Field label="Analysis ID" mono>{report.analysis.id}</Field>
-          <Field label="SHA-256" mono>{file.sha256}</Field>
+          <div className="min-w-0"><dt className="text-xs text-slate-500">SHA-256</dt><dd className="mt-0.5 flex flex-wrap items-center gap-2"><span className="break-all font-mono text-xs">{file.sha256}</span><button type="button" onClick={copyHash} className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100">{copiedHash ? 'Copied' : 'Copy hash'}</button></dd>{copyError && <p role="status" className="mt-1 text-xs text-red-700">{copyError}</p>}</div>
           <Field label="MD5 (reference only)" mono>{file.md5 || '—'}</Field>
           <Field label="Uploaded">{formatDate(file.uploadedAt)}</Field>
           <Field label="Analyzed">{formatDate(report.analysis.finishedAt)}</Field>
