@@ -11,5 +11,10 @@ test('GET /api/health',/* Runs the test case: GET /api/health. */ async () => {
   const res = await fetch(`http://localhost:${s.address().port}/api/health`);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).status, 'ok');
+  const live = await fetch(`http://localhost:${s.address().port}/api/health/live`);
+  assert.equal(live.status, 200);
+  const ready = await fetch(`http://localhost:${s.address().port}/api/health/ready`);
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), { status: 'ready' });
   s.close();
 });

@@ -38,25 +38,27 @@ Backend tests use only synthetic fixtures (no malware). There are currently **no
 |---|---|---|
 | PORT | 4000 | API port |
 | FRONTEND_ORIGIN | http://localhost:5173 | Only origin allowed by CORS |
-| MAX_UPLOAD_MB | 50 | Upload size limit (Supabase Free Storage supports files up to 50 MB) |
-| STORAGE_PROVIDER / STORAGE_DIR / DATA_DIR | local / backend/storage/uploads / backend/data | Select local or Supabase object storage; local records remain for development fallback |
+| MAX_UPLOAD_MB | 100 locally | Upload size limit; AWS infrastructure defaults to 48 MB |
+| DEPLOYMENT_MODE | local | `local` keeps local adapters; `aws` requires S3, SQS, PostgreSQL, authentication, and explicit hosted settings |
+| STORAGE_PROVIDER / STORAGE_DIR / DATA_DIR | local / backend/storage/uploads / backend/data | Local mode supports disk/JSON; hosted AWS mode requires S3 and PostgreSQL with no local persistence fallback |
 | YARA_PATH / YARA_RULES_DIR | yara, backend/rules | Optional YARA scanner and rule folder |
 | MODULE_TIMEOUT_MS | 30000 | Per-module analysis timeout |
 | LLM_PROVIDER | gemini | Provider-neutral LLM selection (`gemini`, `disabled`; Bedrock is a future adapter) |
 | GEMINI_API_KEY / GEMINI_MODEL | unset / unset | Gemini development credentials and configured model; both are needed to enable AI review |
 | LLM_TIMEOUT_MS | 15000 | Gemini request timeout in milliseconds, bounded to 1–60 seconds |
-| DATABASE_URL / DATABASE_SSL / REQUIRE_DATABASE | unset / false / false | PostgreSQL URL, TLS verification, and optional startup failure instead of local fallback; run `docs/database-schema.sql` first |
+| DATABASE_URL / DATABASE_SSL / REQUIRE_DATABASE | unset / false / false | PostgreSQL URL, verified TLS settings, and startup failure instead of local fallback; run `docs/database-schema.sql` and AWS job-claim migration as appropriate |
 | REQUIRE_STORAGE | false | Fail startup when configured object storage is unavailable |
-| SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_STORAGE_BUCKET | unset / unset / unset / uploads | Supabase Auth verification and private object storage; service-role key is backend-only |
+| SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_STORAGE_BUCKET | unset / unset / unset / uploads | Supabase Auth and optional legacy Supabase Storage; service-role key is backend-only and not used by AWS S3 storage |
 | AUTH_REQUIRED / AUTH_ALLOWED_USER_ID | false / unset | Require verified Supabase sessions and restrict API access to one configured user UUID |
-| SANDBOX_IMAGE / SANDBOX_DOCKER_PATH / SANDBOX_TIMEOUT_MS | unset / docker / 30000 | Optional Docker image, executable path, and time limit |
+| SANDBOX_PROVIDER / SANDBOX_TIMEOUT_MS | docker / 30000 | Local Docker sandbox or AWS Batch sandbox; the AWS API image cannot use Docker |
+| AWS_REGION / AWS_S3_BUCKET / ANALYSIS_QUEUE_URL | unset | AWS SDK region, private S3 object bucket, and SQS analysis queue; ECS/Batch use IAM roles |
 | RISK_MODERATE / RISK_HIGH / RISK_VERY_HIGH | 25 / 50 / 75 | Score band thresholds (must ascend) |
 | LOG_SILENT | unset | Set to silence logs |
 
 YARA rule source is pinned in `backend/rules/ruleset.json` to the YARA Forge `core` package. Install or refresh that version with `cd backend && npm run rules:sync`; pass a different dated release tag with `npm run rules:sync -- YYYYMMDD`. This downloads one source package, records its SHA-256 and release metadata, and requires `unzip`. Rule files are not bundled; the report labels YARA as skipped, unavailable, or incomplete until a complete scan actually runs. Review upstream rule licenses before redistributing downloaded rules.
 
 ## Where data lives
-Uploaded files: `backend/storage/uploads/<uuid>.bin` in local mode, or the configured private object bucket when `STORAGE_PROVIDER=supabase`. Records and reports use local JSON by default or PostgreSQL when connected. Hosted deployments should set `REQUIRE_DATABASE=true` so a database connection failure cannot silently choose local JSON. Hosted analysis downloads objects to a private temporary file and removes it after processing. Configuring Gemini sends only minimized file size/type, module states, finding codes/severities, and deterministic assessment fields. File bytes, filenames, extracted strings, credentials, and filesystem data are not sent. Gemini is intended for development within applicable API limits; AWS Bedrock is the intended future production provider. Files are not encrypted by application code and are not deleted automatically. Use **Delete file** or **Remove entry** on the History page.
+Uploaded files: local disk in local mode; private S3 in AWS mode. Records/reports use local JSON only in local development and PostgreSQL when configured; hosted processes fail if PostgreSQL or object storage is unavailable. AWS analysis jobs use SQS and a separate ECS worker. Optional ELF execution uses AWS Batch/Fargate and is disabled by default in infrastructure until validated. See [AWS deployment](docs/DEPLOYMENT.md); the previous Render/Vercel procedure is preserved in [DEPLOYMENT-LEGACY.md](docs/DEPLOYMENT-LEGACY.md). Configuring Gemini sends only minimized evidence fields. File bytes, filenames, extracted strings, credentials, and filesystem data are not sent. Files are not encrypted by application code and are not deleted automatically. Use **Delete file** or **Remove entry** on the History page.
 
 ## Supported uploads
 
@@ -69,7 +71,7 @@ Windows PE and Linux ELF executables, PDF, ZIP archives, OpenXML and legacy Offi
 `docs/API.md` endpoints and schemas - `docs/SECURITY.md` security model and limitations - `docs/INTEGRATION.md` configuration and limits for the LLM, PostgreSQL, and sandbox - `docs/database-schema.sql` PostgreSQL schema.
 
 ## Hosted demo deployment
-For the Supabase + Render + Vercel deployment sequence, environment variables, owner-only authentication setup, and persistence checks, see `docs/DEPLOYMENT.md`.
+For AWS deployment, environment variables, IAM roles, queue behavior, sandbox limits, health checks, and rollback, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The prior Render/Vercel configuration remains in [docs/DEPLOYMENT-LEGACY.md](docs/DEPLOYMENT-LEGACY.md).
 
 ## Troubleshooting
 - **Vite `ECONNREFUSED /api/...`**: the backend is not running on port 4000.

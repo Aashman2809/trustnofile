@@ -1,3 +1,5 @@
+import { log } from '../utils/logger.js';
+
 export class AppError extends Error {
 
   // function Object() { [native code] }
@@ -10,7 +12,7 @@ export function notFound(req, res) {
 // Converts application errors into HTTP responses.
 export function errorHandler(err, req, res, _next) {
   const status = err.status || 500;
-  console.error(`[${req.id}]`, err.code || 'INTERNAL', err.message);
+  log(status >= 500 ? 'error' : 'warn', 'http_request_failed', { requestId: req.id, errorCategory: err.code || 'INTERNAL', status });
   res.status(status).json({ error: {
     code: err.code || 'INTERNAL_ERROR',
     message: status === 500 ? 'Unexpected internal error' : err.message,

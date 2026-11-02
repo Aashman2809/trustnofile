@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { config } from './config/env.js';
+import { config, validateRuntimeConfig } from './config/env.js';
 import { requestId } from './middleware/request-id.middleware.js';
 import { errorHandler, notFound } from './middleware/error.middleware.js';
 import { createHealthRouter } from './routes/health.routes.js';
@@ -22,6 +22,7 @@ import { createSupabaseAuthMiddleware } from './middleware/auth.middleware.js';
 
 // Creates and configures the Express application.
 export async function createApp({ integrations = createIntegrations() } = {}) {
+  validateRuntimeConfig();
   if (config.authRequired && (!config.supabaseUrl || !config.supabaseAnonKey || !config.authAllowedUserId)) throw new Error('AUTH_REQUIRED requires SUPABASE_URL, SUPABASE_ANON_KEY, and AUTH_ALLOWED_USER_ID.');
   let repositories = null;
   let persistence = 'local_json_development_store';
@@ -38,13 +39,14 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
       persistence = 'postgresql';
     } else activeDatabaseStatus = dbStatus.status === 'connected' ? { status: 'unavailable', active: 'local_json_development_store' } : dbStatus;
   } catch { activeDatabaseStatus = { status: 'unavailable', active: 'local_json_development_store' }; }
-  if (config.requireDatabase && !repositories) throw new Error('REQUIRE_DATABASE is enabled but PostgreSQL is unavailable or not configured.');
-  if (config.requireStorage && (await integrations.storage.getStatus()).status !== 'available') throw new Error('REQUIRE_STORAGE is enabled but object storage is unavailable or misconfigured.');
+  if ((config.requireDatabase || config.hosted) && !repositories) throw new Error('REQUIRE_DATABASE is enabled but PostgreSQL is unavailable or not configured.');
+  if ((config.requireStorage || config.hosted) && (await integrations.storage.getStatus()).status !== 'available') throw new Error('REQUIRE_STORAGE is enabled but object storage is unavailable or misconfigured.');
   const fileRepo = repositories?.fileRepo || await createLocalFileRepository(config.dataDir);
   const analysisRepo = repositories?.analysisRepo || await createLocalAnalysisRepository(config.dataDir);
-  const jobs = createInProcessJobManager();
+  const jobs = integrations.jobs || createInProcessJobManager();
   const orchestrator = createOrchestrator({ fileRepo, analysisRepo, jobs, integrations });
-  await orchestrator.recoverInterrupted();
+  if (!integrations.jobs) await orchestrator.recoverInterrupted();
+  else await orchestrator.requeuePending();
   const uploadService = createUploadService({ fileRepo, storage: integrations.storage });
   const duplicateService = createDuplicateService({ fileRepo, analysisRepo });
   const deletionService = createDeletionService({ fileRepo, analysisRepo, storage: integrations.storage });
@@ -55,8 +57,12 @@ export async function createApp({ integrations = createIntegrations() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(requestId);
+  if (config.trustProxy) app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(cors({ origin: config.frontendOrigin, methods: ['GET', 'POST', 'DELETE'] }));
+  app.use(cors({ origin: (origin, callback) => {
+    if (!origin) return callback(null, false);
+    return callback(null, origin === config.frontendOrigin ? config.frontendOrigin : false);
+  }, methods: ['GET', 'POST', 'DELETE'] }));
   app.use(rateLimit({ windowMs: 60_000, limit: 300 }));
   app.use(express.json({ limit: '100kb' }));
   app.use('/api', createHealthRouter({ integrations, persistence,

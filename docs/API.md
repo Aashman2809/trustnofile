@@ -4,6 +4,8 @@ Base URL `http://localhost:4000/api`. JSON everywhere. Errors: `{ "error": { "co
 | Method & path | Purpose | Success | Errors |
 |---|---|---|---|
 | GET `/health` | Health and version | 200 `{status, version, time}` | |
+| GET `/health/live` | Process liveness for ALB/container checks | 200 `{status}` | No dependency details |
+| GET `/health/ready` | Readiness of required database, storage, and queue dependencies | 200 `{status:"ready"}` or 503 `{status:"not_ready"}` | No sensitive dependency details |
 | GET `/config/capabilities` | Public limits, module and integration status | 200 | |
 | POST `/files` (multipart, field `file`) | Upload and validate | 201 `{file, priorAnalysis}` | 400 empty/no file, 413 too large, 415 unsupported |
 | GET `/files?page&pageSize&search` | List file records | 200 `{items,total,page,pageSize}` | |

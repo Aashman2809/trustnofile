@@ -1,73 +1,68 @@
-# Free demo deployment: Supabase, Render, then Vercel
+# AWS deployment
 
-This configuration is for a private, single-user demo. It uses Supabase for PostgreSQL, private object storage, and password authentication; Render for the Express API; and Vercel for the Vite frontend.
+The AWS deployment uses CloudFront/S3 for the frontend, an ALB and ECS Fargate for the API, S3 for uploaded objects, SQS for durable analysis jobs, an ECS Fargate worker, and AWS Batch/Fargate for optional isolated ELF analysis. PostgreSQL and authentication remain on Supabase. Gemini remains the optional LLM provider.
 
-## 1. Prepare the Supabase project
+**Untrusted files must never be executed inside the API container.** The API only accepts files, persists them to S3, creates the analysis record, and publishes an SQS message. The worker performs static analysis and submits eligible ELF files to AWS Batch. Batch jobs receive no application task role or application secrets.
 
-1. Create a Supabase project and save its project URL.
-2. In **SQL Editor**, run `docs/database-schema.sql` against the empty project database.
-3. In **Storage**, create a private bucket named `uploads`. Keep it private and set its maximum file size to 50 MB. The app limit below is 48 MiB to stay below the provider limit.
-4. In **Authentication → Providers / Settings**, disable public sign-ups. This app stores one shared dataset, so use one owner account only.
-5. In **Authentication → Users**, create the owner account and copy its user UUID. Mark its email as confirmed if the project requires email confirmation.
-6. Copy the project API URL, the publishable/anon key, and the `service_role` key. The service-role key is a backend secret and must never be placed in a `VITE_` frontend variable.
-7. Copy the PostgreSQL connection string. Use the Supabase session pooler if the direct connection is not reachable from Render. The connection must use TLS.
+## Local development
 
-## 2. Deploy the API to Render
+Copy `backend/.env.example` to `backend/.env` and use the documented local defaults. Local mode keeps local file/JSON adapters and the existing Docker sandbox. Run the backend with `cd backend && npm ci && npm run dev`; run the frontend with `cd frontend && npm ci && npm run dev`. The Vite development proxy sends `/api` to localhost. No AWS resources are needed for local mode.
 
-Before configuring the API, decide the Vercel production project name so you know its expected `https://<project-name>.vercel.app` origin. If Vercel assigns a different production domain, update `FRONTEND_ORIGIN` in Render and redeploy the API.
+## AWS resources and deployment
 
-1. Create a **Web Service** connected to this repository.
-2. Set **Root Directory** to `backend`, **Build Command** to `npm ci`, and **Start Command** to `npm start`. The package requires Node.js 22.13 or newer.
-3. Pick a Render service name and choose the Free instance for a temporary demo.
-4. Add the environment variables below. Replace values in angle brackets with the real values; do not include the brackets.
+This repository contains no infrastructure-as-code. Create AWS resources manually through the AWS Console. The application architecture uses a VPC, S3, SQS, ECR, IAM, ECS Fargate, an Application Load Balancer, CloudFront with a frontend S3 bucket, AWS Batch/Fargate for optional sandboxing, and CloudWatch. Configure each resource before enabling the matching application integration. No AWS resources, account IDs, credentials, certificate IDs, domain names, or production secrets are included in the repository.
 
-```dotenv
-FRONTEND_ORIGIN=https://<your-vercel-project>.vercel.app
-MAX_UPLOAD_MB=48
-STORAGE_PROVIDER=supabase
-SUPABASE_URL=https://<your-project-ref>.supabase.co
-SUPABASE_ANON_KEY=<Supabase-publishable-or-anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<Supabase-service-role-key>
-SUPABASE_STORAGE_BUCKET=uploads
-AUTH_REQUIRED=true
-AUTH_ALLOWED_USER_ID=<owner-user-uuid>
-REQUIRE_DATABASE=true
-REQUIRE_STORAGE=true
-DATABASE_URL=<Supabase-Postgres-connection-string>
-DATABASE_SSL=true
-LLM_PROVIDER=disabled
+The deployment requires an AWS region; networking in at least two Availability Zones; frontend and API domains; ACM certificates (CloudFront's certificate must be in `us-east-1`); Supabase URL, anon key, owner UUID, and PostgreSQL connection string; and optionally a Gemini API key/model. Create Secrets Manager secrets for the PostgreSQL connection string and optionally `GEMINI_API_KEY`. ECS task execution roles read those values. ECS and Batch use IAM task roles and the default AWS credential chain; do not set static access keys in the application environment. If a customer-managed KMS key encrypts a secret, grant narrowly scoped `kms:Decrypt` permission to the execution role.
+
+Build images from the `backend` directory:
+
+```sh
+docker build -f Dockerfile.api -t <api-image> .
+docker build -f Dockerfile.worker -t <worker-image> .
+docker build -f src/integrations/sandbox/Dockerfile.batch -t <sandbox-image> src/integrations/sandbox
 ```
 
-5. Deploy and wait for the service to become live. Copy its `https://<service>.onrender.com` URL.
-6. Open `https://<service>.onrender.com/api/config/capabilities`. Confirm the reported persistence is PostgreSQL, YARA is accurately reported as unavailable unless separately installed, and storage reports available Supabase. `REQUIRE_DATABASE` and `REQUIRE_STORAGE` make startup fail rather than silently switching to local storage.
+Push the API and worker images before enabling their ECS services. Keep `SANDBOX_PROVIDER=disabled` until the Batch job image, S3 access, network controls, and integration checks have been reviewed. The Batch supervisor obtains short-lived S3 presigned URLs; the untrusted child gets a reduced environment and UID 65534. Batch tasks have S3-only egress and no job IAM role. Fargate does not expose all Docker controls, including a configurable tmpfs/noexec mount; if that isolation control is mandatory, keep sandbox disabled and evaluate an EC2-based isolated worker architecture before enabling it.
 
-## 3. Deploy the frontend to Vercel last
+The frontend build variables are public and documented in `frontend/.env.example`. The existing frontend uses an empty `VITE_API_BASE_URL` to call same-origin `/api`; CloudFront routes `/api/*` to the ALB and other paths to the private S3 frontend origin. Build with `cd frontend && npm ci && npm run build`, sync `frontend/dist` to the configured frontend bucket, then invalidate CloudFront. Do not put backend credentials, service-role keys, Gemini keys, or AWS credentials in any `VITE_` variable.
 
-1. Import the repository in Vercel, set the project root to `frontend`, and choose Node.js 22.x for the build runtime.
-2. Set the build command to `npm ci && npm run build` and output directory to `dist`.
-3. Add these Vercel environment variables for **Production**:
+## Server configuration
 
-```dotenv
-VITE_API_BASE_URL=https://<your-render-service>.onrender.com
-VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<Supabase-publishable-or-anon-key>
-```
+AWS task definitions set the shared configuration. Secrets are loaded via ECS Secrets Manager injection; all other values are task environment configuration. `backend/.env.example` lists the names.
 
-4. Deploy. The app uses the Render API URL directly, and the API allows only the exact Vercel origin configured in `FRONTEND_ORIGIN`.
-5. Sign in with the owner account created in Supabase. There is no sign-up link in the app.
+| Name | Use / classification |
+|---|---|
+| `DEPLOYMENT_MODE=aws`, `AWS_REGION` | Enables strict AWS mode and selects the SDK region. AWS SDK credentials come from task roles. |
+| `AWS_S3_BUCKET`, `STORAGE_PROVIDER=s3` | Private upload and temporary sandbox object bucket; object keys are server-generated UUID filenames under fixed prefixes. |
+| `ANALYSIS_QUEUE_PROVIDER=sqs`, `ANALYSIS_QUEUE_URL` | Durable job submission/consumption; API role sends, worker role receives/deletes/extends visibility. |
+| `DATABASE_URL` | **Secret** in Secrets Manager; Supabase PostgreSQL connection string. |
+| `DATABASE_SSL=true`, `DATABASE_SSL_REJECT_UNAUTHORIZED=true`, optional `DATABASE_SSL_CA` | PostgreSQL TLS verification. Do not disable certificate verification in production. |
+| `REQUIRE_DATABASE=true`, `REQUIRE_STORAGE=true` | Hosted fail-closed startup settings; AWS mode enforces them. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `AUTH_REQUIRED=true`, `AUTH_ALLOWED_USER_ID` | Supabase Auth endpoint, public anon key, and single-owner restriction. |
+| `GEMINI_API_KEY` | Optional **secret**; Gemini API key, worker analysis and API report chat. |
+| `GEMINI_MODEL`, `LLM_PROVIDER=gemini` | Gemini model configuration. |
+| `MAX_UPLOAD_MB`, `SANDBOX_TIMEOUT_MS`, `MODULE_TIMEOUT_MS` | Upload and analysis limits. |
+| `SANDBOX_PROVIDER=batch` or `disabled` | Batch job path or explicitly disabled sandbox. API and worker must use matching settings. |
+| `SANDBOX_BATCH_JOB_QUEUE`, `SANDBOX_BATCH_JOB_DEFINITION` | AWS Batch resources; no credentials or secret values. |
+| `FRONTEND_ORIGIN`, `TRUST_PROXY=true` | Exact browser origin and ALB forwarded-header handling. |
 
-## 4. Verify persistence and access controls
+Public frontend build values are `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. The Supabase anon key is designed to be public. Never expose database credentials, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, sandbox tokens, or AWS credentials to the browser. AWS S3 storage does not use the Supabase service-role key.
 
-1. In a private browser window, confirm the app prompts for sign-in and protected API calls return `401` without a session.
-2. Sign in, upload a harmless sample file smaller than 50 MB, and run analysis.
-3. Confirm the record appears in PostgreSQL, the object appears in the private `uploads` bucket, and the analysis/report works after the Render service wakes from idle.
-4. Delete the sample and confirm the object is removed from Storage. If using the purge option, confirm the database record is also removed.
-5. In Supabase Auth settings, confirm public sign-ups remain disabled. Do not give the service-role key to the frontend or commit any credentials.
+## Job reliability and persistence
 
-## Free-plan limitations
+SQS uses a DLQ and retry redrive policy. The worker extends message visibility and renews a database job claim while processing. PostgreSQL job claims prevent concurrent duplicate message delivery from executing the same analysis at once. API startup requeues unclaimed `UPLOADED` records to recover the small window between database insert and SQS send. Apply [migration 001](migrations/001_analysis_job_claim.sql) to the existing Supabase database before deploying the AWS worker. Review DLQ messages and requeue only after resolving the failure cause.
 
-Render Free services can sleep and use an ephemeral filesystem; analysis jobs in this app run in-process and can be interrupted by a restart. Supabase Free has limited database and object-storage quotas and may pause inactive projects. These services are suitable for a demo, not an availability or durability promise. This app has no per-user data separation, so keep it single-user with public sign-ups disabled. Do not upload sensitive files.
+Analysis state and reports continue to use the existing PostgreSQL schema. Uploaded files are stored in S3; task disk is only used for bounded staging/materialization and temporary work. Temporary sandbox input/results use separate prefixes and are cleaned by the worker, with an S3 lifecycle expiration as a backstop.
 
-## Current environment-variable behavior
+## Health, logs, and checks
 
-`AUTH_REQUIRED=true` requires Supabase URL, anon/publishable key, and `AUTH_ALLOWED_USER_ID`. `REQUIRE_DATABASE=true` makes startup fail rather than silently selecting local JSON if PostgreSQL is missing. `REQUIRE_STORAGE=true` makes startup fail if the private bucket is missing or unreachable. `STORAGE_PROVIDER=supabase` requires the Supabase URL, service-role key, and bucket. Keep the service-role credential only in Render's backend environment.
+- ALB liveness path: `GET /api/health/live` (process-only, no dependency detail).
+- Readiness path: `GET /api/health/ready` (returns only ready/not-ready; checks required database, storage, and queue dependencies).
+- Existing `GET /api/health` and `/api/config/capabilities` remain for compatibility.
+- API/worker/sandbox logs are structured JSON and can be sent to CloudWatch Logs. Configure log groups, retention, alarms, and any SNS notifications manually in the AWS Console.
+
+After deployment, verify in order: readiness; Supabase sign-in and owner restriction; upload and S3 object; SQS enqueue; worker static analysis; report persistence/polling; delete behavior; and, only when enabled, Batch ELF execution, timeout, no-egress behavior, and cleanup. Do not use real malware as a smoke-test sample; test with inert fixtures and controlled security validation.
+
+## Rollback
+
+Before cutover, keep the existing Render/Vercel instructions in [DEPLOYMENT-LEGACY.md](DEPLOYMENT-LEGACY.md). Roll back CloudFront to the previous frontend build and ECS to the previous task definition/image. Do not destroy S3, SQS, Batch, or Supabase data as part of application rollback. For a job migration issue, disable worker service scaling and keep queued work for diagnosis; use the SQS DLQ and database state to reconcile before retry. DNS cutover and database/storage migration are separate decisions; this deployment keeps Supabase PostgreSQL/Auth but changes file storage to S3.

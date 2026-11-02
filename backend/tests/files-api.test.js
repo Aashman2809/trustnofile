@@ -29,6 +29,12 @@ test('capabilities report disabled integrations honestly',/* Runs the test case:
   assert.equal(c.integrations.database.status, 'not_configured'); assert.equal(c.persistence, 'local_json_development_store');
   assert.ok(!JSON.stringify(c).includes(storage));
 });
+test('CORS reflects only the configured frontend origin', async () => {
+  const allowed = await fetch(`${base}/api/health`, { headers: { Origin: 'http://localhost:5173' } });
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+  const denied = await fetch(`${base}/api/health`, { headers: { Origin: 'https://untrusted.example' } });
+  assert.equal(denied.headers.get('access-control-allow-origin'), null);
+});
 test('re-uploading identical content returns a priorAnalysis notice',/* Runs the test case: re-uploading identical content returns a priorAnalysis notice. */ async () => {
   const first = await upload('identical content for dedupe test');
   assert.equal(first.priorAnalysis, null);

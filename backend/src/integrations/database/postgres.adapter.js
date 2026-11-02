@@ -24,7 +24,9 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
       try {
         let Pool = PoolClass;
         if (!Pool) ({ Pool } = await import('pg'));
-        pool = new Pool({ connectionString: url, connectionTimeoutMillis: 3000, idleTimeoutMillis: 30000, max: 10, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
+        const tls = process.env.DATABASE_SSL === 'true';
+        const ssl = tls ? { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false', ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA.replace(/\\n/g, '\n') } : {}) } : undefined;
+        pool = new Pool({ connectionString: tls ? stripConnectionStringTlsOptions(url) : url, connectionTimeoutMillis: 3000, idleTimeoutMillis: 30000, max: 10, ssl });
         pool.on('error',/* Handles the registered event. */ () => { state = { status: 'unavailable', active: 'postgresql' }; });
       } catch { state = { status: 'unavailable', active: 'local_json_development_store' }; return false; }
     }
@@ -65,6 +67,32 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
       // Creates a repository record.
       async create(a) { const { rows }=await pool.query('INSERT INTO analyses(id,file_id,status,stages,risk_score,risk_level,confidence,assessment,evidence,report,error_code,error_message,started_at,finished_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',[a.id,a.fileId,a.status,jsonParam(a.stages),a.assessment?.riskScore??null,a.assessment?.riskLevel??null,a.assessment?.confidence??null,jsonParam(a.assessment),jsonParam(a.evidence),jsonParam(a.report),a.error?.code??null,a.error?.message??null,a.startedAt,a.finishedAt]); return (await this.getById(rows[0].id)); },
 
+      async createIfNeeded({ fileId, force, analysis }) {
+        const client = await pool.connect();
+        let selectedId = null, created = false, reason = null;
+        try {
+          await client.query('BEGIN');
+          await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [fileId]);
+          const active = await client.query("SELECT id FROM analyses WHERE file_id=$1 AND status NOT IN ('COMPLETED','PARTIAL','FAILED','REJECTED') ORDER BY started_at DESC LIMIT 1", [fileId]);
+          if (active.rows[0]) { selectedId = active.rows[0].id; reason = 'already_running'; }
+          else if (!force) {
+            const latest = await client.query("SELECT id FROM analyses WHERE file_id=$1 ORDER BY started_at DESC LIMIT 1", [fileId]);
+            if (latest.rows[0]) {
+              const state = await client.query('SELECT status FROM analyses WHERE id=$1', [latest.rows[0].id]);
+              if (['COMPLETED', 'PARTIAL'].includes(state.rows[0]?.status)) { selectedId = latest.rows[0].id; reason = 'already_completed'; }
+            }
+          }
+          if (!selectedId) {
+            const a = analysis;
+            const { rows } = await client.query('INSERT INTO analyses(id,file_id,status,stages,risk_score,risk_level,confidence,assessment,evidence,report,error_code,error_message,started_at,finished_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id', [a.id,a.fileId,a.status,jsonParam(a.stages),a.assessment?.riskScore??null,a.assessment?.riskLevel??null,a.assessment?.confidence??null,jsonParam(a.assessment),jsonParam(a.evidence),jsonParam(a.report),a.error?.code??null,a.error?.message??null,a.startedAt,a.finishedAt]);
+            selectedId = rows[0].id; created = true;
+          }
+          await client.query('COMMIT');
+        } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+        finally { client.release(); }
+        return { analysis: await this.getById(selectedId), created, reason };
+      },
+
       // Finds a record by its ID.
       async getById(id) { const { rows }=await pool.query(`${selectAnalysis} WHERE a.id=$1`,[id]); return mapAnalysis(rows[0]); },
 
@@ -82,6 +110,14 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
 
       // Lists analyses that have not finished.
       async listNonTerminal() { const {rows}=await pool.query(`${selectAnalysis} WHERE a.status NOT IN ('COMPLETED','PARTIAL','FAILED','REJECTED')`); return rows.map(mapAnalysis); },
+      async listQueueable() { const { rows } = await pool.query(`${selectAnalysis} WHERE a.status='UPLOADED' AND a.job_claimed_at IS NULL`); return rows.map(mapAnalysis); },
+
+      async claimJob(id, leaseMs = 15 * 60_000) {
+        const { rowCount } = await pool.query(`UPDATE analyses SET job_claimed_at=NOW() WHERE id=$1 AND status NOT IN ('COMPLETED','PARTIAL','FAILED','REJECTED') AND (job_claimed_at IS NULL OR job_claimed_at < NOW() - ($2::bigint * interval '1 millisecond'))`, [id, leaseMs]);
+        return rowCount === 1;
+      },
+      async renewJobClaim(id) { await pool.query('UPDATE analyses SET job_claimed_at=NOW() WHERE id=$1', [id]); },
+      async releaseJob(id) { await pool.query('UPDATE analyses SET job_claimed_at=NULL WHERE id=$1', [id]); },
 
       // Removes analyses associated with a file.
       async removeByFileId(id) { await pool.query('DELETE FROM analyses WHERE file_id=$1',[id]); },
@@ -95,4 +131,10 @@ export function createPostgresAdapter({ url = process.env.DATABASE_URL, PoolClas
   // Creates the configured repositories.
   // Returns the current service status.
   return {async getStatus() { if (await connect()) return state; return state; },async createRepositories() { if (!await connect()) throw new Error('PostgreSQL is unavailable'); return repositories(); },async close() { await pool?.end(); pool=null; } };
+}
+
+function stripConnectionStringTlsOptions(value) {
+  const parsed = new URL(value);
+  for (const key of ['ssl', 'sslmode', 'sslcert', 'sslkey', 'sslrootcert']) parsed.searchParams.delete(key);
+  return parsed.toString();
 }

@@ -34,11 +34,13 @@ CREATE TABLE analyses (
   error_code VARCHAR(64),
   error_message VARCHAR(500),
   started_at TIMESTAMPTZ NOT NULL,
-  finished_at TIMESTAMPTZ
+  finished_at TIMESTAMPTZ,
+  job_claimed_at TIMESTAMPTZ
 );
 CREATE INDEX idx_analyses_file ON analyses (file_id, started_at);
 CREATE INDEX idx_analyses_status ON analyses (status);
 CREATE INDEX idx_analyses_risk ON analyses (risk_level);
+CREATE INDEX idx_analyses_unclaimed ON analyses (started_at) WHERE status = 'UPLOADED' AND job_claimed_at IS NULL;
 
 CREATE TABLE analysis_modules (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

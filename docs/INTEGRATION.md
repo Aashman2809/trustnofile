@@ -41,7 +41,7 @@ Migration should require adding a Bedrock adapter and AWS SDK dependency, select
 
 ## PostgreSQL
 
-Set `DATABASE_URL` to a PostgreSQL connection string and apply `docs/database-schema.sql` to an empty database. Optionally set `DATABASE_SSL=true` to require verified TLS. The adapter checks the live connection with `SELECT 1`, then `createApp()` selects the database repositories. If the configured database cannot connect during startup, the app normally uses the existing local JSON store and reports that active store. Set `REQUIRE_DATABASE=true` for hosted environments to fail startup instead of silently choosing the non-durable local store. If PostgreSQL becomes unavailable after startup, affected operations fail; they are not reported as persisted.
+Set `DATABASE_URL` to a PostgreSQL connection string and apply `docs/database-schema.sql` to an empty database. `DATABASE_SSL=true` enables TLS with certificate validation by default; `DATABASE_SSL_CA` can provide a trusted CA. `DATABASE_SSL_REJECT_UNAUTHORIZED=false` is for controlled development only and AWS mode rejects it. The adapter checks the live connection with `SELECT 1`, then `createApp()` selects the database repositories. Local development may use JSON repositories if PostgreSQL is unavailable. AWS/hosted mode fails closed instead. If PostgreSQL becomes unavailable after startup, affected operations fail; they are not reported as persisted.
 
 ## Supabase object storage and authentication
 
@@ -56,6 +56,18 @@ All repository SQL uses positional parameters. Business logic continues to use `
 Build the trusted runner image from `backend/src/integrations/sandbox/Dockerfile`, then set `SANDBOX_IMAGE` to its local tag. `SANDBOX_DOCKER_PATH` selects the Docker CLI (default `docker`); `SANDBOX_TIMEOUT_MS` sets the execution time limit (default 30000, bounded to 1–60 seconds). Status is available only when the configured image exists and the Docker daemon responds.
 
 The current runner executes Linux ELF files only. PDFs, Office files, images, archives, PE files, and other supported types remain static-only. Each eligible execution uses a disposable container with no network, read-only root and input, bounded no-execute temporary storage, no added capabilities, no-new-privileges, a non-root UID, memory/CPU/PID/file-size limits, bounded log output, and a timeout. The container is removed on success, failure, or timeout, and host temporary directories are deleted in `finally` cleanup. No artifact files are collected yet. The uploaded file is never executed on the host. If Docker is unavailable, sandbox is skipped and static/AI results are preserved.
+
+## AWS storage and queue
+
+In AWS mode, select `STORAGE_PROVIDER=s3` and `ANALYSIS_QUEUE_PROVIDER=sqs`; use the ECS task role rather than static AWS access keys. The S3 adapter accepts only generated UUID `.bin` keys and uses fixed `uploads/`, `sandbox-input/`, and `sandbox-results/` prefixes. The API stages multipart bodies only temporarily before writing objects to S3. Analysis downloads to private task temp storage and cleans it after processing.
+
+The API creates an analysis record in Supabase PostgreSQL and publishes a versioned SQS message. An advisory transaction lock prevents concurrent API replicas from creating duplicate active analyses for one file. A `job_claimed_at` database lease prevents duplicate SQS deliveries from running concurrently; workers extend both the SQS visibility timeout and claim lease. API startup republishes eligible unclaimed records to recover a crash between database insert and queue publish. Apply `docs/migrations/001_analysis_job_claim.sql` before deploying the AWS worker. SQS retries failed message processing and routes repeatedly failing messages to the configured DLQ.
+
+## AWS Batch sandbox
+
+Set `SANDBOX_PROVIDER=batch`, `SANDBOX_BATCH_JOB_QUEUE`, and `SANDBOX_BATCH_JOB_DEFINITION` only after provisioning AWS Batch Fargate, a restricted security group, and an S3 bucket/prefix policy. The analysis worker submits a one-job-per-ELF task using short-lived S3 presigned URLs, polls the bounded result, then deletes temporary S3 objects. `batch-runner.py` downloads/uploads as a trusted supervisor and starts the payload under UID 65534 with a reduced environment, resource limits, timeout, and `no_new_privs`. The Batch job definition has no job role and receives no application secrets.
+
+The AWS Batch path is separate from the local Docker CLI; it does not use Docker-in-Docker, the Docker socket, or the API process. Fargate does not provide every Docker control, including a configurable `tmpfs`/`noexec` mount. Sandbox execution is therefore disabled by default in the infrastructure scaffold; enable it only after reviewing the exact task/SG policies and testing the isolation behavior. Choose a stronger isolated EC2/VM boundary if the missing Fargate controls do not meet the threat model.
 
 Build and run commands (from the repository root):
 

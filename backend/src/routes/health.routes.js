@@ -6,6 +6,13 @@ import { yaraAvailability } from '../analysis/yara-scanner.js';
 // Creates health router.
 export function createHealthRouter({ integrations, persistence = 'local_json_development_store', databaseStatus =/* Handles the callback for this operation. */ () => integrations.database.getStatus() }) {
   const r = Router();
+  r.get('/health/live', (_q, res) => res.json({ status: 'ok' }));
+  r.get('/health/ready', async (_q, res) => {
+    const checks = await Promise.allSettled([databaseStatus(), integrations.storage?.getStatus?.() || Promise.resolve({ status: 'available' }), integrations.jobs?.getStatus?.() || Promise.resolve({ status: 'available' })]);
+    const required = config.deploymentMode === 'aws' || config.requireDatabase || config.requireStorage;
+    const ready = !required || checks.every((check) => check.status === 'fulfilled' && check.value?.status === 'available');
+    res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready' });
+  });
   r.get('/health',/* Handles the response for this request. */ (_q, res) => res.json({ status: 'ok', version: config.version, time: new Date().toISOString() }));
   r.get('/config/capabilities',/* Handles the response for this request. */ async (_q, res) => {
     const yara = await yaraAvailability();

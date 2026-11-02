@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "start:worker": "node src/worker.js",
     "sandbox-worker": "node src/sandbox-worker/server.js",
     "scan": "node scripts/scan.js",
     "rules:sync": "node scripts/sync-yara-rules.js",
@@ -15,6 +16,10 @@
     "test": "node --test \"tests/**/*.test.js\""
   },
   "dependencies": {
+    "@aws-sdk/client-batch": "^3.1161.0",
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@aws-sdk/client-sqs": "^3.1161.0",
+    "@aws-sdk/s3-request-presigner": "^3.1161.0",
     "@google/genai": "^2.31.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

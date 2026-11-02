@@ -201,14 +201,53 @@ export function createOrchestrator({ fileRepo, analysisRepo, jobs, runStatic = r
           if (last && ['COMPLETED', 'PARTIAL'].includes(last.status)) return { analysis: last, created: false, reason: 'already_completed' };
         }
         const now = iso();
-        const analysis = await analysisRepo.create({
+        const record = {
           id: newId(), fileId, status: 'UPLOADED', startedAt: now, finishedAt: null, stages: initialStages(now), error: null,
           file: { id: file.id, originalName: file.originalName, size: file.size, detected: file.detected, sha256: file.sha256, uploadedAt: file.uploadedAt },
           evidence: null, assessment: null, report: null,
-        });
-        jobs.enqueue(/* Handles the callback for this operation. */ () => execute(analysis.id));
+        };
+        const result = analysisRepo.createIfNeeded
+          ? await analysisRepo.createIfNeeded({ fileId, force, analysis: record })
+          : { analysis: await analysisRepo.create(record), created: true, reason: null };
+        const analysis = result.analysis;
+        if (!result.created) return result;
+        try {
+          await jobs.enqueue({ analysisId: analysis.id, fileId }, () => execute(analysis.id));
+        } catch (error) {
+          const failedAt = iso();
+          await analysisRepo.update(analysis.id, { status: 'FAILED', finishedAt: failedAt, error: { code: 'JOB_ENQUEUE_FAILED', message: 'Analysis could not be queued. You can retry it.' } });
+          throw error;
+        }
         return { analysis, created: true, reason: null };
       });
+    },
+
+    async processJob(analysisId, { onClaimed = null } = {}) {
+      const existing = await analysisRepo.getById(analysisId);
+      if (!existing) return { outcome: 'missing' };
+      if (TERMINAL.includes(existing.status)) return { outcome: 'already_terminal' };
+      if (analysisRepo.claimJob && !(await analysisRepo.claimJob(analysisId))) return { outcome: 'claimed_elsewhere' };
+      const heartbeat = onClaimed ? setInterval(() => { void Promise.resolve(onClaimed()).catch(() => {}); }, 60_000) : null;
+      try {
+        await execute(analysisId);
+        const finished = await analysisRepo.getById(analysisId);
+        if (!finished || !TERMINAL.includes(finished.status)) throw new Error('Analysis outcome was not persisted.');
+        return { outcome: 'processed' };
+      } finally {
+        if (heartbeat) clearInterval(heartbeat);
+        await analysisRepo.releaseJob?.(analysisId).catch(() => {});
+      }
+    },
+
+    async requeuePending() {
+      if (!analysisRepo.listQueueable) return 0;
+      const pending = await analysisRepo.listQueueable();
+      let queued = 0;
+      for (const analysis of pending) {
+        await jobs.enqueue({ analysisId: analysis.id, fileId: analysis.fileId });
+        queued++;
+      }
+      return queued;
     },
 
     // Recovers analyses interrupted by a previous run.

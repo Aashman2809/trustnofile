@@ -17,7 +17,7 @@ export function createInProcessJobManager({ concurrency = 2 } = {}) {
   return {
 
     // Queues enqueue operation.
-    enqueue(fn) { queue.push(fn); pump(); },
+    enqueue(job, processJob) { queue.push(typeof job === 'function' ? job : () => processJob?.(job)); pump(); },
 
     // Handles idle.
     onIdle() { return running || queue.length ? new Promise(/* Handles the callback for this operation. */ (r) => waiters.push(r)) : Promise.resolve(); },
